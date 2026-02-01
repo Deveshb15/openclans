@@ -9,13 +9,17 @@ import { StateSync } from "./network/StateSync";
 import type { SpectatorState } from "./shared/types";
 
 // ============================================================
-// Initialize Three.js World Scene
+// Initialize PixiJS World Scene
 // ============================================================
 
 const container = document.getElementById("game-container")!;
 const stateSync = new StateSync();
 const worldScene = new WorldScene();
-worldScene.init(container, stateSync);
+
+// WorldScene.init is async (PixiJS v8 requires async init)
+worldScene.init(container, stateSync).then(() => {
+  console.log("[MoltClans] PixiJS scene initialized");
+});
 
 // ============================================================
 // Network Setup
@@ -177,7 +181,7 @@ function initRegisterPanel(): void {
         body: JSON.stringify({ name }),
       });
 
-      const json = await res.json();
+      const json = (await res.json()) as { ok: boolean; data?: { apiKey: string; id: string }; error?: string };
 
       if (json.ok && json.data) {
         const { apiKey, id } = json.data;

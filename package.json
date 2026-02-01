@@ -19,11 +19,10 @@
     "drizzle-orm": "^0.36.0",
     "partyserver": "^0.0.60",
     "partysocket": "^1.0.2",
-    "three": "^0.170.0"
+    "pixi.js": "^8.15.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241205.0",
-    "@types/three": "^0.170.0",
     "@types/node": "^20.11.0",
     "concurrently": "^8.2.2",
     "dotenv": "^16.4.0",

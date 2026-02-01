@@ -1383,7 +1383,7 @@ export class MoltClansServer extends Server<Env> {
     if (method === "POST" && seg0 === "agents" && seg1 === "register") {
       const body = await this.parseBody(req);
       const response = await handleRegister(body, this.db);
-      this.broadcast("agent_joined", null);
+      this.broadcastEvent("agent_joined", null);
       return response;
     }
 
@@ -1454,7 +1454,7 @@ export class MoltClansServer extends Server<Env> {
       }
       if (method === "POST" && seg1 === "join") {
         const response = await handleJoin(agent, this.db);
-        this.broadcast("agent_joined", { agentId: agent.id });
+        this.broadcastEvent("agent_joined", { agentId: agent.id });
         return response;
       }
       if (method === "GET" && seg1 === "me" && seg2 === "notifications") {
@@ -1480,7 +1480,7 @@ export class MoltClansServer extends Server<Env> {
       if (method === "POST" && !seg1) {
         const body = await this.parseBody(req);
         const response = await handleClaimPlot(body, agent, this.db, this.grid);
-        this.broadcast("plot_claimed", { agentId: agent.id });
+        this.broadcastEvent("plot_claimed", { agentId: agent.id });
         return response;
       }
       if (method === "GET" && !seg1) {
@@ -1491,7 +1491,7 @@ export class MoltClansServer extends Server<Env> {
       }
       if (method === "DELETE" && seg1 && !seg2) {
         const response = await handleReleasePlot(seg1, agent, this.db, this.grid);
-        this.broadcast("plot_released", {
+        this.broadcastEvent("plot_released", {
           plotId: seg1,
           agentId: agent.id,
         });
@@ -1500,7 +1500,7 @@ export class MoltClansServer extends Server<Env> {
       if (method === "POST" && seg1 && seg2 === "transfer") {
         const body = await this.parseBody(req);
         const response = await handleTransferPlot(seg1, body, agent, this.db);
-        this.broadcast("plot_claimed", {
+        this.broadcastEvent("plot_claimed", {
           plotId: seg1,
           agentId: agent.id,
         });
@@ -1523,7 +1523,7 @@ export class MoltClansServer extends Server<Env> {
         }
         const body = await this.parseBody(req);
         const response = await handlePlaceBuilding(body, agent, this.db, this.grid);
-        this.broadcast("building_placed", {
+        this.broadcastEvent("building_placed", {
           agentId: agent.id,
         });
         return response;
@@ -1536,7 +1536,7 @@ export class MoltClansServer extends Server<Env> {
       }
       if (method === "POST" && seg1 && seg2 === "upgrade") {
         const response = await handleUpgradeBuilding(seg1, agent, this.db);
-        this.broadcast("building_upgraded", {
+        this.broadcastEvent("building_upgraded", {
           buildingId: seg1,
           agentId: agent.id,
         });
@@ -1544,7 +1544,7 @@ export class MoltClansServer extends Server<Env> {
       }
       if (method === "DELETE" && seg1 && !seg2) {
         const response = await handleDemolishBuilding(seg1, agent, this.db, this.grid);
-        this.broadcast("building_demolished", {
+        this.broadcastEvent("building_demolished", {
           buildingId: seg1,
           agentId: agent.id,
         });
@@ -1558,7 +1558,7 @@ export class MoltClansServer extends Server<Env> {
           agent,
           this.db
         );
-        this.broadcast("building_progress", {
+        this.broadcastEvent("building_progress", {
           buildingId: seg1,
           agentId: agent.id,
         });
@@ -1573,7 +1573,7 @@ export class MoltClansServer extends Server<Env> {
       }
       if (method === "POST" && seg1 === "collect") {
         const response = await handleCollectResources(agent, this.db);
-        this.broadcast("resources_collected", {
+        this.broadcastEvent("resources_collected", {
           agentId: agent.id,
         });
         return response;
@@ -1595,7 +1595,7 @@ export class MoltClansServer extends Server<Env> {
         }
         const body = await this.parseBody(req);
         const response = await handleTownChat(body, agent, this.db);
-        this.broadcast("chat_message", {
+        this.broadcastEvent("chat_message", {
           channel: "town",
           agentId: agent.id,
         });
@@ -1614,7 +1614,7 @@ export class MoltClansServer extends Server<Env> {
         }
         const body = await this.parseBody(req);
         const response = await handleClanChat(body, agent, this.db);
-        this.broadcast("chat_message", {
+        this.broadcastEvent("chat_message", {
           channel: "clan",
           agentId: agent.id,
         });
@@ -1633,7 +1633,7 @@ export class MoltClansServer extends Server<Env> {
         }
         const body = await this.parseBody(req);
         const response = await handleDM(seg2, body, agent, this.db);
-        this.broadcast("chat_message", {
+        this.broadcastEvent("chat_message", {
           channel: "dm",
           agentId: agent.id,
           recipientId: seg2,
@@ -1676,7 +1676,7 @@ export class MoltClansServer extends Server<Env> {
         }
         const body = await this.parseBody(req);
         const response = await handleCreateTrade(body, agent, this.db);
-        this.broadcast("trade_created", {
+        this.broadcastEvent("trade_created", {
           agentId: agent.id,
         });
         return response;
@@ -1686,7 +1686,7 @@ export class MoltClansServer extends Server<Env> {
       }
       if (method === "POST" && seg1 && seg2 === "accept") {
         const response = await handleAcceptTrade(seg1, agent, this.db);
-        this.broadcast("trade_accepted", {
+        this.broadcastEvent("trade_accepted", {
           tradeId: seg1,
           agentId: agent.id,
         });
@@ -1694,7 +1694,7 @@ export class MoltClansServer extends Server<Env> {
       }
       if (method === "DELETE" && seg1 && !seg2) {
         const response = await handleCancelTrade(seg1, agent, this.db);
-        this.broadcast("trade_cancelled", {
+        this.broadcastEvent("trade_cancelled", {
           tradeId: seg1,
           agentId: agent.id,
         });
@@ -1707,7 +1707,7 @@ export class MoltClansServer extends Server<Env> {
       if (method === "POST" && !seg1) {
         const body = await this.parseBody(req);
         const response = await handleCreateClan(body, agent, this.db);
-        this.broadcast("clan_created", {
+        this.broadcastEvent("clan_created", {
           agentId: agent.id,
         });
         return response;
@@ -1717,7 +1717,7 @@ export class MoltClansServer extends Server<Env> {
       }
       if (method === "POST" && seg1 && seg2 === "join") {
         const response = await handleJoinClan(seg1, agent, this.db);
-        this.broadcast("clan_joined", {
+        this.broadcastEvent("clan_joined", {
           clanId: seg1,
           agentId: agent.id,
         });
@@ -1725,7 +1725,7 @@ export class MoltClansServer extends Server<Env> {
       }
       if (method === "POST" && seg1 && seg2 === "leave") {
         const response = await handleLeaveClan(seg1, agent, this.db);
-        this.broadcast("clan_left", {
+        this.broadcastEvent("clan_left", {
           clanId: seg1,
           agentId: agent.id,
         });
@@ -1734,7 +1734,7 @@ export class MoltClansServer extends Server<Env> {
       if (method === "POST" && seg1 && seg2 === "donate") {
         const body = await this.parseBody(req);
         const response = await handleDonateToClan(seg1, body, agent, this.db);
-        this.broadcast("clan_joined", {
+        this.broadcastEvent("clan_joined", {
           clanId: seg1,
           agentId: agent.id,
         });
@@ -1747,7 +1747,7 @@ export class MoltClansServer extends Server<Env> {
       if (method === "POST" && seg1 === "proposals" && !seg2) {
         const body = await this.parseBody(req);
         const response = await handleCreateProposal(body, agent, this.db);
-        this.broadcast("proposal_created", {
+        this.broadcastEvent("proposal_created", {
           agentId: agent.id,
         });
         return response;
@@ -1758,7 +1758,7 @@ export class MoltClansServer extends Server<Env> {
       if (method === "POST" && seg1 === "proposals" && seg2 && seg3 === "vote") {
         const body = await this.parseBody(req);
         const response = await handleVote(seg2, body, agent, this.db);
-        this.broadcast("proposal_voted", {
+        this.broadcastEvent("proposal_voted", {
           proposalId: seg2,
           agentId: agent.id,
         });
@@ -2002,7 +2002,7 @@ export class MoltClansServer extends Server<Env> {
 
       // 7. Broadcast if there were completions
       if (completedCount > 0) {
-        this.broadcast("building_completed", {
+        this.broadcastEvent("building_completed", {
           completedCount,
         });
       }
@@ -2062,7 +2062,7 @@ export class MoltClansServer extends Server<Env> {
 
   // ======================= BROADCAST =======================
 
-  private broadcast(type: WSMessageType, data: unknown): void {
+  private broadcastEvent(type: WSMessageType, data: unknown): void {
     const message: WSMessage = {
       type,
       data,
@@ -2127,7 +2127,7 @@ export class MoltClansServer extends Server<Env> {
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     return (
-      (await routePartykitRequest(request, env)) ||
+      (await routePartykitRequest(request, env as unknown as Record<string, unknown>)) ||
       new Response("Not Found", { status: 404 })
     );
   },

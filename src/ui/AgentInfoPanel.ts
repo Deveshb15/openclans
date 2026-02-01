@@ -28,7 +28,8 @@ export class AgentInfoPanel {
     agent: PublicAgent,
     buildings: Building[],
     plots: Plot[],
-    clan?: Clan | null
+    clan?: Clan | null,
+    activity?: string,
   ): void {
     this.visible = true;
     this.container.classList.add("visible");
@@ -83,6 +84,22 @@ export class AgentInfoPanel {
       this.addRow("Clan", agent.clanId);
     } else {
       this.addRow("Clan", "None", "#555555");
+    }
+
+    // --- Activity ---
+    if (activity) {
+      const activityLabel = activity.replace(/_/g, " ").toLowerCase();
+      const activityColors: Record<string, string> = {
+        idle: "#888888",
+        walking_to_build: "#ff9800",
+        building: "#ff5722",
+        walking_to_collect: "#2196f3",
+        collecting: "#4caf50",
+        carrying_back: "#8bc34a",
+        wandering: "#9e9e9e",
+        socializing: "#e91e63",
+      };
+      this.addRow("Activity", activityLabel, activityColors[activity.toLowerCase()] ?? "#e0e0e0");
     }
 
     // --- Section: Properties ---
