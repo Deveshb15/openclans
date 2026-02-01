@@ -36,11 +36,11 @@ export async function handleCreateProposal(
   agent: Agent,
   db: Db
 ): Promise<Response> {
-  if (agent.prestige < PRESTIGE.THRESHOLD_PROPOSALS) {
+  if (agent.reputation < PRESTIGE.THRESHOLD_PROPOSALS) {
     return jsonResponse<ApiResponse>(
       {
         ok: false,
-        error: `Creating proposals requires ${PRESTIGE.THRESHOLD_PROPOSALS} prestige. You have ${agent.prestige}.`,
+        error: `Creating proposals requires ${PRESTIGE.THRESHOLD_PROPOSALS} reputation. You have ${agent.reputation}.`,
       },
       403
     );
@@ -206,7 +206,7 @@ export async function handleVote(
   await updateProposal(db, proposalId, { votes: newVotes });
 
   // Award prestige for voting
-  await updateAgent(db, agent.id, { prestige: agent.prestige + PRESTIGE.VOTE });
+  await updateAgent(db, agent.id, { reputation: agent.reputation + PRESTIGE.VOTE });
 
   await insertActivity(
     db,
@@ -250,7 +250,7 @@ async function tallyVotes(
   for (const [agentId, vote] of Object.entries(proposal.votes)) {
     const a = await getAgentById(db, agentId);
     const weight =
-      a && a.prestige >= PRESTIGE.THRESHOLD_DOUBLE_VOTES ? 2 : 1;
+      a && a.reputation >= PRESTIGE.THRESHOLD_DOUBLE_VOTES ? 2 : 1;
 
     switch (vote) {
       case "yes":
@@ -319,7 +319,7 @@ async function resolveProposal(
     const proposer = await getAgentById(db, proposal.proposerId);
     if (proposer) {
       await updateAgent(db, proposer.id, {
-        prestige: proposer.prestige + PRESTIGE.PROPOSAL_PASSED,
+        reputation: proposer.reputation + PRESTIGE.PROPOSAL_PASSED,
       });
     }
 

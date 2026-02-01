@@ -337,6 +337,79 @@ export class StateSync extends SimpleEmitter {
         break;
       }
 
+      case "agent_action": {
+        this.emit("agent-action", message.data);
+        break;
+      }
+
+      case "world_event": {
+        const event = message.data as import("../shared/types").WorldEvent;
+        if (this.state.worldEvents) {
+          this.state.worldEvents.push(event);
+        }
+        this.emit("world-event", event);
+        break;
+      }
+
+      case "milestone_achieved": {
+        const milestone = message.data as import("../shared/types").VictoryMilestone;
+        if (this.state.milestones) {
+          this.state.milestones.push(milestone);
+        }
+        this.emit("milestone-achieved", milestone);
+        break;
+      }
+
+      case "resource_gathered": {
+        this.emit("resource-gathered", message.data);
+        break;
+      }
+
+      case "item_refined": {
+        this.emit("item-refined", message.data);
+        break;
+      }
+
+      case "forest_cleared": {
+        const { x, y } = message.data as { x: number; y: number };
+        if (this.state.grid[y] && this.state.grid[y][x]) {
+          this.state.grid[y][x].terrain = "plains" as import("../shared/types").TerrainType;
+          this.state.grid[y][x].resourceNode = null;
+        }
+        this.emit("forest-cleared", message.data);
+        break;
+      }
+
+      case "building_decayed": {
+        const { buildingId } = message.data as { buildingId: string };
+        const building = this.state.buildings[buildingId];
+        if (building) {
+          // Clear grid cells occupied by the building
+          for (let dy = 0; dy < building.height; dy++) {
+            for (let dx = 0; dx < building.width; dx++) {
+              const gx = building.x + dx;
+              const gy = building.y + dy;
+              if (this.state.grid[gy] && this.state.grid[gy][gx]) {
+                this.state.grid[gy][gx].buildingId = null;
+              }
+            }
+          }
+          delete this.state.buildings[buildingId];
+          this.emit("building-decayed", buildingId);
+        }
+        break;
+      }
+
+      case "agent_starving": {
+        const { agentId } = message.data as { agentId: string };
+        const agent = this.state.agents[agentId];
+        if (agent) {
+          agent.isStarving = true;
+          this.emit("agent-starving", agent);
+        }
+        break;
+      }
+
       default:
         break;
     }

@@ -4,35 +4,34 @@ import {
   BUILD_COOLDOWN_MS,
   CHAT_COOLDOWN_MS,
   TRADE_COOLDOWN_MS,
+  MOVE_COOLDOWN_MS,
+  GATHER_COOLDOWN_MS,
+  REFINE_COOLDOWN_MS,
+  BATCH_COOLDOWN_MS,
 } from "../../src/shared/constants";
 
 interface RateLimitEntry {
   count: number;
   windowStart: number;
-  lastAction: Record<string, number>; // action -> last timestamp
+  lastAction: Record<string, number>;
 }
 
-/**
- * Simple in-memory rate limiter keyed by agent ID.
- * Tracks both general request counts per window and per-action cooldowns.
- */
 const limits = new Map<string, RateLimitEntry>();
 
-/**
- * Action-specific cooldown durations in milliseconds.
- */
 const ACTION_COOLDOWNS: Record<string, number> = {
   build: BUILD_COOLDOWN_MS,
   chat: CHAT_COOLDOWN_MS,
   trade: TRADE_COOLDOWN_MS,
+  move: MOVE_COOLDOWN_MS,
+  gather: GATHER_COOLDOWN_MS,
+  refine: REFINE_COOLDOWN_MS,
+  batch: BATCH_COOLDOWN_MS,
+  claim: BUILD_COOLDOWN_MS,
+  clear: GATHER_COOLDOWN_MS,
 };
 
 /**
  * Checks whether an agent is allowed to make a request.
- *
- * @param agentId - The agent's unique ID
- * @param action - Optional action type for action-specific cooldowns ("build", "chat", "trade")
- * @returns Object with `allowed` boolean, and `retryAfter` in seconds if rate limited
  */
 export function checkRateLimit(
   agentId: string,
@@ -56,7 +55,7 @@ export function checkRateLimit(
     entry.windowStart = now;
   }
 
-  // Check general rate limit
+  // Check general rate limit (300/min)
   if (entry.count >= RATE_LIMIT_MAX_REQUESTS) {
     const retryAfter = Math.ceil(
       (entry.windowStart + RATE_LIMIT_WINDOW_MS - now) / 1000
@@ -87,7 +86,6 @@ export function checkRateLimit(
 
 /**
  * Cleans up stale rate limit entries (older than 5 minutes).
- * Should be called periodically to prevent memory leaks.
  */
 export function cleanupRateLimits(): void {
   const now = Date.now();

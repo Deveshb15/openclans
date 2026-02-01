@@ -1,66 +1,156 @@
 // ============================================================
-// MoltClans Shared Types
+// MoltClans Shared Types — v2.0 Game Rules Overhaul
 // ============================================================
 
 // --- Terrain & Grid ---
 
-export type TerrainType = "grass" | "dirt" | "stone" | "water" | "sand";
+export type TerrainType = "plains" | "fertile" | "forest" | "mountain" | "water" | "riverbank" | "desert";
+
+export interface ResourceNode {
+  type: "tree" | "stone_deposit" | "clay_deposit" | "water_source" | "fertile_soil";
+  maxAmount: number;
+  currentAmount: number;
+  respawnTicks: number;
+  depletedAt: number | null;
+}
 
 export interface GridCell {
   terrain: TerrainType;
   plotId: string | null;
   buildingId: string | null;
+  resourceNode: ResourceNode | null;
+  isPassable: boolean;
+  isCleared: boolean;
 }
 
 // --- Resources ---
 
+export interface RawResources {
+  wood: number;
+  stone: number;
+  water: number;
+  food: number;
+  clay: number;
+}
+
+export interface RefinedMaterials {
+  planks: number;
+  bricks: number;
+  cement: number;
+  glass: number;
+  steel: number;
+}
+
+export interface AgentInventory {
+  raw: RawResources;
+  refined: RefinedMaterials;
+  tokens: number;
+}
+
+export type RawResourceType = keyof RawResources;
+export type RefinedMaterialType = keyof RefinedMaterials;
+
+/** Legacy compat — references to "Resources" now mean the combined inventory */
 export interface Resources {
   wood: number;
   stone: number;
   food: number;
   gold: number;
 }
-
 export type ResourceType = keyof Resources;
+
+// --- Personality ---
+
+export type PersonalityType = "builder" | "trader" | "politician" | "explorer" | "hoarder" | "diplomat";
 
 // --- Buildings ---
 
 export type BuildingType =
-  | "house"
+  // Tier 1
+  | "wooden_hut"
   | "farm"
-  | "lumbermill"
-  | "quarry"
-  | "market"
+  | "sawmill"
+  | "storage_shed"
+  | "dirt_road"
+  | "well"
+  // Tier 2
+  | "kiln"
+  | "stone_house"
+  | "marketplace"
+  | "stone_wall"
+  | "warehouse"
+  | "paved_road"
   | "workshop"
-  | "tavern"
-  | "townhall"
-  | "wall"
-  | "garden"
+  | "inn"
+  // Tier 3
+  | "cement_works"
+  | "town_hall"
+  | "apartment_block"
+  | "bank"
+  | "university"
+  | "hospital"
+  | "commercial_tower"
+  | "forge"
+  | "embassy"
+  // Tier 4
+  | "skyscraper"
+  | "grand_bazaar"
+  | "mint"
   | "monument"
-  | "road";
+  | "spaceport";
+
+export interface BuildingCost {
+  raw: Partial<RawResources>;
+  refined: Partial<RefinedMaterials>;
+  tokens: number;
+}
+
+export interface RentContract {
+  type: RentContractType;
+  ticksRemaining: number;
+  incomeMultiplier: number;
+}
+
+export type RentContractType = "sprint" | "standard" | "long_term";
+
+export interface RefiningRecipe {
+  name: string;
+  inputs: Partial<RawResources>;
+  outputs: Partial<RefinedMaterials>;
+  requiresStructure: BuildingType | null;
+  handCraftable: boolean;
+  handYieldMultiplier: number;
+}
 
 export interface BuildingDefinition {
   type: BuildingType;
+  tier: number;
   width: number;
   height: number;
-  cost: Resources;
+  cost: BuildingCost;
   benefit: string;
-  buildTime: number; // seconds
-  upgradeCostMultiplier: number;
+  buildTime: number; // seconds (instant for most since we use tick-based now)
   maxLevel: number;
-  production?: Partial<Resources>; // per hour
+  tokenIncome: number; // tokens per tick
+  production?: Partial<RawResources>; // raw resources per tick
+  durability: number;
+  maxDurability: number;
+  decayRate: number;
+  gateRequirement?: BuildingType; // must own this building to unlock
+  reputationGate?: number;
+  residential?: boolean; // can have rent contracts
+  refineryRecipe?: string; // recipe name this building enables
   adjacencyBonus?: {
     target: BuildingType;
-    resource: ResourceType;
-    multiplier: number;
+    bonusPercent: number;
   };
-  requiresPrestige?: number;
-  collaborative?: boolean;
+  areaOfEffect?: number; // radius in tiles
 }
 
 export interface Building {
   id: string;
   type: BuildingType;
+  tier: number;
   ownerId: string;
   plotId: string;
   x: number;
@@ -72,10 +162,27 @@ export interface Building {
   completed: boolean;
   startedAt: number;
   completedAt: number | null;
-  pendingResources: Resources; // uncollected
+  durability: number;
+  maxDurability: number;
+  decayRate: number;
+  tokenIncome: number;
+  rentContractType: RentContractType | null;
+  rentTicksRemaining: number;
+  // Pending resources (uncollected production)
+  pendingRawWood: number;
+  pendingRawStone: number;
+  pendingRawWater: number;
+  pendingRawFood: number;
+  pendingRawClay: number;
+  pendingRefinedPlanks: number;
+  pendingRefinedBricks: number;
+  pendingRefinedCement: number;
+  pendingRefinedGlass: number;
+  pendingRefinedSteel: number;
+  pendingTokens: number;
   lastCollection: number;
-  inscription?: string; // for monuments
-  contributors?: Record<string, Resources>; // for collaborative builds
+  inscription?: string;
+  contributors?: Record<string, Partial<RawResources>>;
 }
 
 // --- Plots ---
@@ -99,8 +206,14 @@ export interface Agent {
   color: string;
   x: number;
   y: number;
-  resources: Resources;
-  prestige: number;
+  inventory: AgentInventory;
+  reputation: number;
+  personality: PersonalityType;
+  inventoryLimit: number;
+  currentTier: number;
+  isStarving: boolean;
+  visionRadius: number;
+  foodConsumedAt: number;
   clanId: string | null;
   joinedAt: number;
   lastSeen: number;
@@ -116,7 +229,10 @@ export interface PublicAgent {
   color: string;
   x: number;
   y: number;
-  prestige: number;
+  reputation: number;
+  personality: PersonalityType;
+  currentTier: number;
+  isStarving: boolean;
   clanId: string | null;
   joinedAt: number;
   lastSeen: number;
@@ -127,13 +243,19 @@ export interface PublicAgent {
 
 // --- Clans ---
 
+export interface ClanTreasury {
+  raw: Partial<RawResources>;
+  refined: Partial<RefinedMaterials>;
+  tokens: number;
+}
+
 export interface Clan {
   id: string;
   name: string;
-  tag: string; // 2-4 char abbreviation
+  tag: string;
   leaderId: string;
   memberIds: string[];
-  treasury: Resources;
+  treasury: ClanTreasury;
   createdAt: number;
   description: string;
 }
@@ -147,8 +269,8 @@ export interface ChatMessage {
   channel: ChatChannel;
   senderId: string;
   senderName: string;
-  recipientId?: string; // for DMs
-  clanId?: string; // for clan chat
+  recipientId?: string;
+  clanId?: string;
   content: string;
   timestamp: number;
 }
@@ -157,13 +279,19 @@ export interface ChatMessage {
 
 export type TradeStatus = "open" | "accepted" | "cancelled" | "expired";
 
+export interface TradeResources {
+  raw: Partial<RawResources>;
+  refined: Partial<RefinedMaterials>;
+  tokens: number;
+}
+
 export interface Trade {
   id: string;
   sellerId: string;
   sellerName: string;
-  buyerId: string | null; // null = open market
-  offering: Partial<Resources>;
-  requesting: Partial<Resources>;
+  buyerId: string | null;
+  offering: TradeResources;
+  requesting: TradeResources;
   status: TradeStatus;
   createdAt: number;
   resolvedAt: number | null;
@@ -211,6 +339,41 @@ export interface ActivityEntry {
   timestamp: number;
 }
 
+// --- World Events ---
+
+export type WorldEventType =
+  | "resource_boom"
+  | "drought"
+  | "new_land_discovery"
+  | "trade_festival"
+  | "earthquake"
+  | "migration_wave";
+
+export interface WorldEvent {
+  id: string;
+  type: WorldEventType;
+  description: string;
+  startTick: number;
+  endTick: number;
+  effects: Record<string, unknown>;
+}
+
+// --- Victory Milestones ---
+
+export type MilestoneType =
+  | "first_town"
+  | "population_100"
+  | "world_gdp_10000"
+  | "grand_monument"
+  | "spaceport";
+
+export interface VictoryMilestone {
+  id: string;
+  type: MilestoneType;
+  achievedAt: number;
+  achievedByAgentId: string;
+}
+
 // --- Game State (full server state) ---
 
 export interface GameState {
@@ -241,7 +404,10 @@ export interface SpectatorState {
   proposals: Record<string, Proposal>;
   chat: ChatMessage[];
   activity: ActivityEntry[];
+  worldEvents: WorldEvent[];
+  milestones: VictoryMilestone[];
   tick: number;
+  publicTreasury: number;
 }
 
 // --- API Response Types ---
@@ -267,6 +433,10 @@ export interface TownStatsResponse {
   activeTrades: number;
   activeProposals: number;
   tick: number;
+  worldGDP: number;
+  publicTreasury: number;
+  activeEvents: WorldEvent[];
+  milestones: VictoryMilestone[];
 }
 
 // --- WebSocket Messages ---
@@ -283,6 +453,7 @@ export type WSMessageType =
   | "building_completed"
   | "building_upgraded"
   | "building_demolished"
+  | "building_decayed"
   | "chat_message"
   | "trade_created"
   | "trade_accepted"
@@ -294,7 +465,14 @@ export type WSMessageType =
   | "proposal_voted"
   | "proposal_resolved"
   | "resources_collected"
-  | "activity";
+  | "activity"
+  | "agent_action"
+  | "world_event"
+  | "milestone_achieved"
+  | "resource_gathered"
+  | "item_refined"
+  | "forest_cleared"
+  | "agent_starving";
 
 export interface WSMessage {
   type: WSMessageType;

@@ -1,5 +1,5 @@
 // ============================================================
-// MoltClans - A* Pathfinder on 128x128 Grid
+// MoltClans - A* Pathfinder on Grid
 // ============================================================
 
 import { BinaryHeap } from "./BinaryHeap";
@@ -8,14 +8,16 @@ import type { GridCell, TerrainType } from "../../shared/types";
 
 /** Movement cost by terrain type */
 const TERRAIN_COST: Record<TerrainType, number> = {
-  grass: 1.0,
-  dirt: 1.2,
-  stone: 1.5,
-  sand: 1.8,
+  plains: 1.0,
+  fertile: 1.0,
+  forest: 2.0,
+  mountain: Infinity,
   water: Infinity,
+  riverbank: 1.2,
+  desert: 1.8,
 };
 
-/** Road cost override (buildings of type "road" marked on grid) */
+/** Road cost override (buildings of type "dirt_road"/"paved_road" marked on grid) */
 const ROAD_COST = 0.5;
 
 const SQRT2 = Math.sqrt(2);

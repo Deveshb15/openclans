@@ -23,6 +23,7 @@ export class AgentInfoPanel {
    * @param buildings  Buildings owned by this agent
    * @param plots  Plots owned by this agent
    * @param clan  The agent's clan (if any)
+   * @param activity  Current behavior state string
    */
   show(
     agent: PublicAgent,
@@ -74,8 +75,24 @@ export class AgentInfoPanel {
       agent.online ? "#4caf50" : "#888888"
     );
 
-    // --- Prestige ---
-    this.addRow("Prestige", String(agent.prestige), "#ffd700");
+    // --- Starving indicator ---
+    if (agent.isStarving) {
+      this.addRow("Starving", "YES", "#f44336");
+    }
+
+    // --- Reputation ---
+    this.addRow("Reputation", String(agent.reputation ?? 0), "#ffd700");
+
+    // --- Personality ---
+    if (agent.personality) {
+      const personalityLabel = agent.personality.charAt(0).toUpperCase() + agent.personality.slice(1);
+      this.addRow("Personality", personalityLabel, "#ce93d8");
+    }
+
+    // --- Tier ---
+    if (agent.currentTier !== undefined && agent.currentTier !== null) {
+      this.addRow("Tier", String(agent.currentTier), "#90caf9");
+    }
 
     // --- Clan ---
     if (clan) {
@@ -98,6 +115,11 @@ export class AgentInfoPanel {
         carrying_back: "#8bc34a",
         wandering: "#9e9e9e",
         socializing: "#e91e63",
+        gathering: "#43a047",
+        refining: "#7b1fa2",
+        clearing_forest: "#33691e",
+        starving: "#f44336",
+        repairing: "#ff6f00",
       };
       this.addRow("Activity", activityLabel, activityColors[activity.toLowerCase()] ?? "#e0e0e0");
     }

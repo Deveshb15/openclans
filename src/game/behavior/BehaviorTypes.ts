@@ -11,7 +11,12 @@ export type BehaviorState =
   | "CARRYING_BACK"
   | "WALKING_HOME"
   | "WANDERING"
-  | "SOCIALIZING";
+  | "SOCIALIZING"
+  | "GATHERING"
+  | "REFINING"
+  | "CLEARING_FOREST"
+  | "STARVING"
+  | "REPAIRING";
 
 export interface AgentBehaviorData {
   agentId: string;
@@ -31,6 +36,11 @@ export const STATE_DURATIONS: Partial<Record<BehaviorState, number>> = {
   COLLECTING: 3000,
   SOCIALIZING: 4000,
   IDLE: 2000,
+  GATHERING: 5000,
+  REFINING: 5000,
+  CLEARING_FOREST: 10000,
+  STARVING: 1000,
+  REPAIRING: 4000,
 };
 
 /** Activity priority weights */
@@ -39,4 +49,8 @@ export const ACTIVITY_PRIORITIES = {
   collection: 7,
   socializing: 3,
   wandering: 1,
+  gathering: 8,
+  refining: 6,
+  clearing: 5,
+  repairing: 9,
 };

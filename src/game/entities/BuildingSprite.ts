@@ -21,6 +21,8 @@ export class BuildingSprite {
   private scaffoldingSprite: Sprite | null = null;
   private progressBar: Container | null = null;
   private progressFill: Graphics | null = null;
+  private durabilityBar: Container | null = null;
+  private durabilityFill: Graphics | null = null;
   private levelBadge: Text | null = null;
   private ownerTintOverlay: Graphics | null = null;
   private resourceOrbs: Sprite[] = [];
@@ -80,6 +82,16 @@ export class BuildingSprite {
     } else {
       this.hideConstruction();
       this.showCompleted(building);
+    }
+
+    // Update durability indicator
+    this.updateDurabilityBar(building);
+
+    // Tint when durability is low
+    if (building.maxDurability > 0 && building.durability < building.maxDurability * 0.3) {
+      this.mainSprite.tint = 0xbbbbbb;
+    } else {
+      this.mainSprite.tint = 0xffffff;
     }
   }
 
@@ -161,6 +173,57 @@ export class BuildingSprite {
     }
   }
 
+  private updateDurabilityBar(building: Building): void {
+    if (!building.completed || building.maxDurability <= 0) {
+      // Remove if building is not completed or has no durability
+      if (this.durabilityBar) {
+        this.container.removeChild(this.durabilityBar);
+        this.durabilityBar = null;
+        this.durabilityFill = null;
+      }
+      return;
+    }
+
+    if (!this.durabilityBar) {
+      this.durabilityBar = new Container();
+      this.durabilityBar.position.set(-20, 8);
+
+      const bg = new Graphics()
+        .roundRect(0, 0, 40, 4, 1)
+        .fill({ color: 0x222222, alpha: 0.7 });
+      this.durabilityBar.addChild(bg);
+
+      this.durabilityFill = new Graphics();
+      this.durabilityBar.addChild(this.durabilityFill);
+
+      this.container.addChild(this.durabilityBar);
+    }
+
+    if (this.durabilityFill) {
+      this.durabilityFill.clear();
+      const ratio = Math.max(0, Math.min(1, building.durability / building.maxDurability));
+      const width = Math.max(1, ratio * 38);
+      // Red to green gradient: red at 0%, yellow at 50%, green at 100%
+      let color: number;
+      if (ratio < 0.5) {
+        // Red to yellow
+        const t = ratio * 2;
+        const r = 0xff;
+        const g = Math.floor(0x99 * t);
+        color = (r << 16) | (g << 8);
+      } else {
+        // Yellow to green
+        const t = (ratio - 0.5) * 2;
+        const r = Math.floor(0xff * (1 - t));
+        const g = Math.floor(0x99 + (0xaf - 0x99) * t);
+        color = (r << 16) | (g << 8) | Math.floor(0x50 * t);
+      }
+      this.durabilityFill
+        .roundRect(1, 0.5, width, 3, 1)
+        .fill({ color });
+    }
+  }
+
   private showCompleted(building: Building): void {
     // Level badge
     if (building.level > 1) {
@@ -198,12 +261,19 @@ export class BuildingSprite {
 
     if (!building.completed) return;
 
-    const pending = building.pendingResources;
-    const resources = [
-      { type: "wood", amount: pending.wood },
-      { type: "stone", amount: pending.stone },
-      { type: "food", amount: pending.food },
-      { type: "gold", amount: pending.gold },
+    // Check all individual pending resource fields
+    const resources: { type: string; amount: number }[] = [
+      { type: "wood", amount: building.pendingRawWood ?? 0 },
+      { type: "stone", amount: building.pendingRawStone ?? 0 },
+      { type: "water", amount: building.pendingRawWater ?? 0 },
+      { type: "food", amount: building.pendingRawFood ?? 0 },
+      { type: "clay", amount: building.pendingRawClay ?? 0 },
+      { type: "planks", amount: building.pendingRefinedPlanks ?? 0 },
+      { type: "bricks", amount: building.pendingRefinedBricks ?? 0 },
+      { type: "cement", amount: building.pendingRefinedCement ?? 0 },
+      { type: "glass", amount: building.pendingRefinedGlass ?? 0 },
+      { type: "steel", amount: building.pendingRefinedSteel ?? 0 },
+      { type: "tokens", amount: building.pendingTokens ?? 0 },
     ].filter((r) => r.amount > 0);
 
     let orbIndex = 0;
@@ -265,7 +335,7 @@ export class BuildingSprite {
       this.mainSprite.alpha = 0.85 + 0.15 * Math.sin(now * 0.002);
     }
 
-    // Flower bob for gardens
+    // Flower bob for gardens (not used since no garden type, but kept for extensibility)
     if (config.flowerBob) {
       this.mainSprite.position.y = Math.sin(now * 0.002) * 1;
     }

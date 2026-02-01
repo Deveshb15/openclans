@@ -37,8 +37,14 @@ export function selectActivity(
   // 2. Check for buildings with pending resources to collect
   for (const building of Object.values(state.buildings)) {
     if (building.ownerId !== agentId || !building.completed) continue;
-    const pending = building.pendingResources;
-    if (pending.wood > 1 || pending.stone > 1 || pending.food > 1 || pending.gold > 1) {
+    const totalPending =
+      (building.pendingRawWood ?? 0) + (building.pendingRawStone ?? 0) +
+      (building.pendingRawWater ?? 0) + (building.pendingRawFood ?? 0) +
+      (building.pendingRawClay ?? 0) + (building.pendingRefinedPlanks ?? 0) +
+      (building.pendingRefinedBricks ?? 0) + (building.pendingRefinedCement ?? 0) +
+      (building.pendingRefinedGlass ?? 0) + (building.pendingRefinedSteel ?? 0) +
+      (building.pendingTokens ?? 0);
+    if (totalPending > 1) {
       return {
         state: "WALKING_TO_COLLECT",
         targetX: building.x,

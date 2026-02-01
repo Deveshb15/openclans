@@ -1,17 +1,22 @@
-import type { Agent, Building } from "../../src/shared/types";
+import type { Agent, Building, PersonalityType, PublicAgent } from "../../src/shared/types";
 import {
-  STARTER_RESOURCES,
+  STARTER_TOKENS,
+  STARTER_FOOD,
   AGENT_COLORS,
-  MAX_PLOTS_PER_AGENT,
+  PERSONALITIES,
+  INVENTORY_LIMIT_DEFAULT,
+  VISION_RADIUS,
 } from "../../src/shared/constants";
 
 /**
- * Creates a new agent with a unique ID, API key, random color, and starter resources.
+ * Creates a new agent with starter resources matching the new game rules.
+ * Starts with 100 tokens, 10 food, random personality, tier 0.
  */
 export function createAgent(name: string): Agent {
   const id = crypto.randomUUID();
   const apiKey = generateApiKey();
   const color = AGENT_COLORS[Math.floor(Math.random() * AGENT_COLORS.length)];
+  const personality = PERSONALITIES[Math.floor(Math.random() * PERSONALITIES.length)] as PersonalityType;
 
   return {
     id,
@@ -20,8 +25,18 @@ export function createAgent(name: string): Agent {
     color,
     x: 0,
     y: 0,
-    resources: { ...STARTER_RESOURCES },
-    prestige: 0,
+    inventory: {
+      raw: { wood: 0, stone: 0, water: 0, food: STARTER_FOOD, clay: 0 },
+      refined: { planks: 0, bricks: 0, cement: 0, glass: 0, steel: 0 },
+      tokens: STARTER_TOKENS,
+    },
+    reputation: 0,
+    personality,
+    inventoryLimit: INVENTORY_LIMIT_DEFAULT,
+    currentTier: 0,
+    isStarving: false,
+    visionRadius: VISION_RADIUS,
+    foodConsumedAt: 0,
     clanId: null,
     joinedAt: Date.now(),
     lastSeen: Date.now(),
@@ -48,25 +63,81 @@ function generateApiKey(): string {
 }
 
 /**
- * Calculates the maximum number of plots an agent can own.
- * Base MAX_PLOTS_PER_AGENT plus one extra per completed house building.
+ * Compute agent tier from owned buildings + reputation.
+ * - Tier 0: default
+ * - Tier 1: 3+ tiles claimed
+ * - Tier 2: owns a Kiln
+ * - Tier 3: owns Town Hall AND reputation >= 20
+ * - Tier 4: owns University AND reputation >= 50
+ */
+export function getAgentTier(agent: Agent, buildings: Record<string, Building>): number {
+  let ownsKiln = false;
+  let ownsTownHall = false;
+  let ownsUniversity = false;
+
+  for (const building of Object.values(buildings)) {
+    if (building.ownerId !== agent.id || !building.completed) continue;
+    if (building.type === "kiln") ownsKiln = true;
+    if (building.type === "town_hall") ownsTownHall = true;
+    if (building.type === "university") ownsUniversity = true;
+  }
+
+  if (ownsUniversity && agent.reputation >= 50) return 4;
+  if (ownsTownHall && agent.reputation >= 20) return 3;
+  if (ownsKiln) return 2;
+  if (agent.plotCount >= 3) return 1;
+  return 0;
+}
+
+/**
+ * Calculate max plots for agent. Base 20 + extras from storage buildings.
  */
 export function getMaxPlots(agent: Agent, buildings: Record<string, Building>): number {
   let extra = 0;
   for (const building of Object.values(buildings)) {
-    if (
-      building.ownerId === agent.id &&
-      building.type === "house" &&
-      building.completed
-    ) {
-      extra += building.level; // Each house level grants +1
+    if (building.ownerId === agent.id && building.completed) {
+      if (building.type === "wooden_hut" || building.type === "stone_house") {
+        extra += building.level;
+      }
     }
   }
-  return MAX_PLOTS_PER_AGENT + extra;
+  return 20 + extra;
 }
 
 /**
- * Checks if the agent owns a completed workshop, which grants a build cost discount.
+ * Calculate inventory limit including storage buildings.
+ */
+export function getInventoryLimit(agent: Agent, buildings: Record<string, Building>): number {
+  let extra = 0;
+  for (const building of Object.values(buildings)) {
+    if (building.ownerId !== agent.id || !building.completed) continue;
+    if (building.type === "storage_shed") extra += 50 * building.level;
+    if (building.type === "warehouse") extra += 100 * building.level;
+  }
+  return INVENTORY_LIMIT_DEFAULT + extra;
+}
+
+/**
+ * Get current inventory usage (total items).
+ */
+export function getInventoryUsage(agent: Agent): number {
+  const raw = agent.inventory.raw;
+  const refined = agent.inventory.refined;
+  return (
+    raw.wood + raw.stone + raw.water + raw.food + raw.clay +
+    refined.planks + refined.bricks + refined.cement + refined.glass + refined.steel
+  );
+}
+
+/**
+ * Check if agent can act (not starving).
+ */
+export function canAct(agent: Agent): boolean {
+  return !agent.isStarving;
+}
+
+/**
+ * Checks if the agent owns a completed workshop for build cost discount.
  */
 export function hasWorkshopDiscount(
   agent: Agent,
@@ -85,27 +156,30 @@ export function hasWorkshopDiscount(
 }
 
 /**
- * Calculates the prestige level title based on accumulated prestige points.
+ * Calculates the reputation level title.
  */
-export function calculatePrestigeLevel(prestige: number): string {
-  if (prestige >= 1000) return "Legend";
-  if (prestige >= 500) return "Elder";
-  if (prestige >= 200) return "Veteran";
-  if (prestige >= 50) return "Builder";
+export function calculatePrestigeLevel(reputation: number): string {
+  if (reputation >= 100) return "Legend";
+  if (reputation >= 50) return "Elder";
+  if (reputation >= 30) return "Veteran";
+  if (reputation >= 10) return "Builder";
   return "Newcomer";
 }
 
 /**
  * Strips the apiKey from an agent to produce a public-safe version.
  */
-export function toPublicAgent(agent: Agent) {
+export function toPublicAgent(agent: Agent): PublicAgent {
   return {
     id: agent.id,
     name: agent.name,
     color: agent.color,
     x: agent.x,
     y: agent.y,
-    prestige: agent.prestige,
+    reputation: agent.reputation,
+    personality: agent.personality,
+    currentTier: agent.currentTier,
+    isStarving: agent.isStarving,
     clanId: agent.clanId,
     joinedAt: agent.joinedAt,
     lastSeen: agent.lastSeen,

@@ -2,8 +2,9 @@ import type {
   Agent,
   ApiResponse,
   Trade,
-  Resources,
-  ResourceType,
+  TradeResources,
+  RawResources,
+  RefinedMaterials,
 } from "../../src/shared/types";
 import { PRESTIGE } from "../../src/shared/constants";
 import type { Db } from "../db/client";
@@ -20,13 +21,12 @@ import {
 import { acceptTrade as acceptTradeTx } from "../db/transactions";
 
 /**
- * POST /trades
- * Creates a new trade offer. Validates the seller has enough resources.
+ * POST /trades — create a new trade offer with 11 resource types + tokens
  */
 export async function handleCreateTrade(
   body: {
-    offering?: Partial<Resources>;
-    requesting?: Partial<Resources>;
+    offering?: Partial<TradeResources>;
+    requesting?: Partial<TradeResources>;
     buyerId?: string | null;
   },
   agent: Agent,
@@ -39,70 +39,68 @@ export async function handleCreateTrade(
     );
   }
 
-  const offering = body.offering;
-  const requesting = body.requesting;
+  const offering = normalizeTradeResources(body.offering);
+  const requesting = normalizeTradeResources(body.requesting);
 
-  // Validate that at least something is being offered and requested
-  const totalOffering = sumResources(offering);
-  const totalRequesting = sumResources(requesting);
+  const totalOffering = sumTradeResources(offering);
+  const totalRequesting = sumTradeResources(requesting);
+
   if (totalOffering <= 0) {
-    return jsonResponse<ApiResponse>(
-      { ok: false, error: "Must offer at least some resources" },
-      400
-    );
+    return jsonResponse<ApiResponse>({ ok: false, error: "Must offer at least some resources" }, 400);
   }
   if (totalRequesting <= 0) {
-    return jsonResponse<ApiResponse>(
-      { ok: false, error: "Must request at least some resources" },
-      400
-    );
+    return jsonResponse<ApiResponse>({ ok: false, error: "Must request at least some resources" }, 400);
   }
 
-  // Validate seller has the offered resources
-  for (const [key, amount] of Object.entries(offering)) {
-    const resKey = key as ResourceType;
-    if (amount && amount > 0 && agent.resources[resKey] < amount) {
+  // Validate seller has offered resources
+  const inv = agent.inventory;
+  for (const [key, amount] of Object.entries(offering.raw)) {
+    if (amount && amount > 0 && (inv.raw[key as keyof RawResources] ?? 0) < amount) {
       return jsonResponse<ApiResponse>(
-        {
-          ok: false,
-          error: `Insufficient ${resKey}. You have ${agent.resources[resKey]}, but are offering ${amount}.`,
-        },
+        { ok: false, error: `Insufficient ${key}. You have ${inv.raw[key as keyof RawResources]}, offering ${amount}.` },
         403
       );
     }
   }
-
-  // If a specific buyer is targeted, verify they exist
-  if (body.buyerId) {
-    const buyer = await getAgentById(db, body.buyerId);
-    if (!buyer) {
+  for (const [key, amount] of Object.entries(offering.refined)) {
+    if (amount && amount > 0 && (inv.refined[key as keyof RefinedMaterials] ?? 0) < amount) {
       return jsonResponse<ApiResponse>(
-        { ok: false, error: "Target buyer agent not found" },
-        404
-      );
-    }
-    if (body.buyerId === agent.id) {
-      return jsonResponse<ApiResponse>(
-        { ok: false, error: "Cannot create a trade with yourself" },
-        400
+        { ok: false, error: `Insufficient ${key}. You have ${inv.refined[key as keyof RefinedMaterials]}, offering ${amount}.` },
+        403
       );
     }
   }
+  if (offering.tokens > 0 && inv.tokens < offering.tokens) {
+    return jsonResponse<ApiResponse>(
+      { ok: false, error: `Insufficient tokens. You have ${inv.tokens}, offering ${offering.tokens}.` },
+      403
+    );
+  }
 
-  // Reserve the offered resources (deduct from seller)
-  const deductWood = offering.wood && offering.wood > 0 ? offering.wood : 0;
-  const deductStone = offering.stone && offering.stone > 0 ? offering.stone : 0;
-  const deductFood = offering.food && offering.food > 0 ? offering.food : 0;
-  const deductGold = offering.gold && offering.gold > 0 ? offering.gold : 0;
+  if (body.buyerId) {
+    const buyer = await getAgentById(db, body.buyerId);
+    if (!buyer) return jsonResponse<ApiResponse>({ ok: false, error: "Target buyer not found" }, 404);
+    if (body.buyerId === agent.id) return jsonResponse<ApiResponse>({ ok: false, error: "Cannot trade with yourself" }, 400);
+  }
 
-  await updateAgent(db, agent.id, {
-    resourceWood: agent.resources.wood - deductWood,
-    resourceStone: agent.resources.stone - deductStone,
-    resourceFood: agent.resources.food - deductFood,
-    resourceGold: agent.resources.gold - deductGold,
-  });
+  // Reserve offered resources
+  const updates: Record<string, number> = {};
+  if ((offering.raw.wood ?? 0) > 0) updates.rawWood = inv.raw.wood - (offering.raw.wood ?? 0);
+  if ((offering.raw.stone ?? 0) > 0) updates.rawStone = inv.raw.stone - (offering.raw.stone ?? 0);
+  if ((offering.raw.water ?? 0) > 0) updates.rawWater = inv.raw.water - (offering.raw.water ?? 0);
+  if ((offering.raw.food ?? 0) > 0) updates.rawFood = inv.raw.food - (offering.raw.food ?? 0);
+  if ((offering.raw.clay ?? 0) > 0) updates.rawClay = inv.raw.clay - (offering.raw.clay ?? 0);
+  if ((offering.refined.planks ?? 0) > 0) updates.refinedPlanks = inv.refined.planks - (offering.refined.planks ?? 0);
+  if ((offering.refined.bricks ?? 0) > 0) updates.refinedBricks = inv.refined.bricks - (offering.refined.bricks ?? 0);
+  if ((offering.refined.cement ?? 0) > 0) updates.refinedCement = inv.refined.cement - (offering.refined.cement ?? 0);
+  if ((offering.refined.glass ?? 0) > 0) updates.refinedGlass = inv.refined.glass - (offering.refined.glass ?? 0);
+  if ((offering.refined.steel ?? 0) > 0) updates.refinedSteel = inv.refined.steel - (offering.refined.steel ?? 0);
+  if (offering.tokens > 0) updates.tokens = inv.tokens - offering.tokens;
 
-  // Create trade
+  if (Object.keys(updates).length > 0) {
+    await updateAgent(db, agent.id, updates);
+  }
+
   const trade: Trade = {
     id: crypto.randomUUID(),
     sellerId: agent.id,
@@ -117,47 +115,25 @@ export async function handleCreateTrade(
 
   await insertTrade(db, trade);
 
-  // Notify targeted buyer if applicable
   if (trade.buyerId) {
-    await insertNotification(
-      db,
-      trade.buyerId,
-      "trade_offer",
-      `${agent.name} sent you a trade offer`
-    );
+    await insertNotification(db, trade.buyerId, "trade_offer", `${agent.name} sent you a trade offer`);
   }
 
-  await insertActivity(
-    db,
-    "trade_created",
-    agent.id,
-    agent.name,
-    `${agent.name} posted a trade offer`
-  );
+  await insertActivity(db, "trade_created", agent.id, agent.name, `${agent.name} posted a trade offer`);
 
-  return jsonResponse<ApiResponse>({
-    ok: true,
-    data: { trade },
-  }, 201);
+  return jsonResponse<ApiResponse>({ ok: true, data: { trade } }, 201);
 }
 
 /**
  * GET /trades
- * Returns all open trades.
  */
 export async function handleGetTrades(db: Db): Promise<Response> {
   const openTrades = await getOpenTrades(db);
-
-  return jsonResponse<ApiResponse>({
-    ok: true,
-    data: { trades: openTrades },
-  });
+  return jsonResponse<ApiResponse>({ ok: true, data: { trades: openTrades } });
 }
 
 /**
  * POST /trades/:id/accept
- * Accepts a trade. Validates the buyer has the requested resources.
- * Performs the resource swap.
  */
 export async function handleAcceptTrade(
   tradeId: string,
@@ -165,77 +141,45 @@ export async function handleAcceptTrade(
   db: Db
 ): Promise<Response> {
   const trade = await getTradeById(db, tradeId);
-  if (!trade) {
-    return jsonResponse<ApiResponse>(
-      { ok: false, error: "Trade not found" },
-      404
-    );
-  }
+  if (!trade) return jsonResponse<ApiResponse>({ ok: false, error: "Trade not found" }, 404);
+  if (trade.status !== "open") return jsonResponse<ApiResponse>({ ok: false, error: `Trade is no longer open (status: ${trade.status})` }, 409);
+  if (trade.sellerId === agent.id) return jsonResponse<ApiResponse>({ ok: false, error: "Cannot accept your own trade" }, 400);
+  if (trade.buyerId && trade.buyerId !== agent.id) return jsonResponse<ApiResponse>({ ok: false, error: "This trade is for a specific buyer" }, 403);
 
-  if (trade.status !== "open") {
-    return jsonResponse<ApiResponse>(
-      { ok: false, error: `Trade is no longer open (status: ${trade.status})` },
-      409
-    );
-  }
-
-  if (trade.sellerId === agent.id) {
-    return jsonResponse<ApiResponse>(
-      { ok: false, error: "Cannot accept your own trade" },
-      400
-    );
-  }
-
-  // If trade is targeted, only the target can accept
-  if (trade.buyerId && trade.buyerId !== agent.id) {
-    return jsonResponse<ApiResponse>(
-      { ok: false, error: "This trade offer is for a specific buyer" },
-      403
-    );
-  }
-
-  // Validate buyer has the requested resources
-  for (const [key, amount] of Object.entries(trade.requesting)) {
-    const resKey = key as ResourceType;
-    if (amount && amount > 0 && agent.resources[resKey] < amount) {
-      return jsonResponse<ApiResponse>(
-        {
-          ok: false,
-          error: `Insufficient ${resKey}. You have ${agent.resources[resKey]}, trade requests ${amount}.`,
-        },
-        403
-      );
+  // Validate buyer has requested resources
+  const inv = agent.inventory;
+  const req = trade.requesting;
+  for (const [key, amount] of Object.entries(req.raw)) {
+    if (amount && amount > 0 && (inv.raw[key as keyof RawResources] ?? 0) < amount) {
+      return jsonResponse<ApiResponse>({ ok: false, error: `Insufficient ${key}. You have ${inv.raw[key as keyof RawResources]}, trade requests ${amount}.` }, 403);
     }
+  }
+  for (const [key, amount] of Object.entries(req.refined)) {
+    if (amount && amount > 0 && (inv.refined[key as keyof RefinedMaterials] ?? 0) < amount) {
+      return jsonResponse<ApiResponse>({ ok: false, error: `Insufficient ${key}.` }, 403);
+    }
+  }
+  if ((req.tokens ?? 0) > 0 && inv.tokens < (req.tokens ?? 0)) {
+    return jsonResponse<ApiResponse>({ ok: false, error: `Insufficient tokens.` }, 403);
   }
 
   const seller = await getAgentById(db, trade.sellerId);
   if (!seller) {
-    // Seller no longer exists; cancel trade
     await updateTrade(db, tradeId, { status: "cancelled", resolvedAt: Date.now() });
-    return jsonResponse<ApiResponse>(
-      { ok: false, error: "Seller no longer exists" },
-      410
-    );
+    return jsonResponse<ApiResponse>({ ok: false, error: "Seller no longer exists" }, 410);
   }
 
-  // Execute trade atomically
   await acceptTradeTx(db, trade, agent, seller);
-
-  // Re-fetch the trade for response
   const updatedTrade = await getTradeById(db, tradeId);
 
   return jsonResponse<ApiResponse>({
     ok: true,
-    data: {
-      trade: updatedTrade ?? trade,
-      message: "Trade accepted! Resources swapped.",
-    },
+    data: { trade: updatedTrade ?? trade, message: "Trade accepted! Resources swapped." },
   });
 }
 
 /**
  * DELETE /trades/:id
- * Cancels a trade. Only the seller can cancel. Resources are refunded.
  */
 export async function handleCancelTrade(
   tradeId: string,
@@ -243,77 +187,49 @@ export async function handleCancelTrade(
   db: Db
 ): Promise<Response> {
   const trade = await getTradeById(db, tradeId);
-  if (!trade) {
-    return jsonResponse<ApiResponse>(
-      { ok: false, error: "Trade not found" },
-      404
-    );
-  }
+  if (!trade) return jsonResponse<ApiResponse>({ ok: false, error: "Trade not found" }, 404);
+  if (trade.sellerId !== agent.id) return jsonResponse<ApiResponse>({ ok: false, error: "Only the seller can cancel" }, 403);
+  if (trade.status !== "open") return jsonResponse<ApiResponse>({ ok: false, error: `Trade is no longer open (status: ${trade.status})` }, 409);
 
-  if (trade.sellerId !== agent.id) {
-    return jsonResponse<ApiResponse>(
-      { ok: false, error: "Only the seller can cancel a trade" },
-      403
-    );
-  }
+  // Refund offered resources
+  const inv = agent.inventory;
+  const off = trade.offering;
+  const updates: Record<string, number> = {};
+  updates.rawWood = inv.raw.wood + (off.raw.wood ?? 0);
+  updates.rawStone = inv.raw.stone + (off.raw.stone ?? 0);
+  updates.rawWater = inv.raw.water + (off.raw.water ?? 0);
+  updates.rawFood = inv.raw.food + (off.raw.food ?? 0);
+  updates.rawClay = inv.raw.clay + (off.raw.clay ?? 0);
+  updates.refinedPlanks = inv.refined.planks + (off.refined.planks ?? 0);
+  updates.refinedBricks = inv.refined.bricks + (off.refined.bricks ?? 0);
+  updates.refinedCement = inv.refined.cement + (off.refined.cement ?? 0);
+  updates.refinedGlass = inv.refined.glass + (off.refined.glass ?? 0);
+  updates.refinedSteel = inv.refined.steel + (off.refined.steel ?? 0);
+  updates.tokens = inv.tokens + (off.tokens ?? 0);
 
-  if (trade.status !== "open") {
-    return jsonResponse<ApiResponse>(
-      { ok: false, error: `Trade is no longer open (status: ${trade.status})` },
-      409
-    );
-  }
+  await updateAgent(db, agent.id, updates);
+  await updateTrade(db, tradeId, { status: "cancelled", resolvedAt: Date.now() });
+  await insertActivity(db, "trade_cancelled", agent.id, agent.name, `${agent.name} cancelled a trade offer`);
 
-  // Refund offered resources to seller
-  const refundWood = trade.offering.wood ?? 0;
-  const refundStone = trade.offering.stone ?? 0;
-  const refundFood = trade.offering.food ?? 0;
-  const refundGold = trade.offering.gold ?? 0;
-
-  await updateAgent(db, agent.id, {
-    resourceWood: agent.resources.wood + refundWood,
-    resourceStone: agent.resources.stone + refundStone,
-    resourceFood: agent.resources.food + refundFood,
-    resourceGold: agent.resources.gold + refundGold,
-  });
-
-  await updateTrade(db, tradeId, {
-    status: "cancelled",
-    resolvedAt: Date.now(),
-  });
-
-  await insertActivity(
-    db,
-    "trade_cancelled",
-    agent.id,
-    agent.name,
-    `${agent.name} cancelled a trade offer`
-  );
-
-  return jsonResponse<ApiResponse>({
-    ok: true,
-    data: {
-      message: "Trade cancelled. Resources refunded.",
-    },
-  });
+  return jsonResponse<ApiResponse>({ ok: true, data: { message: "Trade cancelled. Resources refunded." } });
 }
 
-/**
- * Sums all resource values in a partial resources object.
- */
-function sumResources(resources: Partial<Resources>): number {
+function normalizeTradeResources(input: Partial<TradeResources>): TradeResources {
+  return {
+    raw: input.raw ?? {},
+    refined: input.refined ?? {},
+    tokens: input.tokens ?? 0,
+  };
+}
+
+function sumTradeResources(tr: TradeResources): number {
   let total = 0;
-  for (const amount of Object.values(resources)) {
-    if (typeof amount === "number" && amount > 0) {
-      total += amount;
-    }
-  }
+  for (const v of Object.values(tr.raw)) if (typeof v === "number" && v > 0) total += v;
+  for (const v of Object.values(tr.refined)) if (typeof v === "number" && v > 0) total += v;
+  if (tr.tokens > 0) total += tr.tokens;
   return total;
 }
 
-/**
- * Helper to create a JSON Response.
- */
 function jsonResponse<T>(data: T, status: number = 200): Response {
   return new Response(JSON.stringify(data), {
     status,

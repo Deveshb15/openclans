@@ -65,7 +65,7 @@ export class AgentBehaviorSystem {
   private updateRoadCells(state: SpectatorState): void {
     const roads = new Set<string>();
     for (const building of Object.values(state.buildings)) {
-      if (building.type === "road" && building.completed) {
+      if ((building.type === "dirt_road" || building.type === "paved_road") && building.completed) {
         for (let dy = 0; dy < building.height; dy++) {
           for (let dx = 0; dx < building.width; dx++) {
             roads.add(`${building.x + dx},${building.y + dy}`);

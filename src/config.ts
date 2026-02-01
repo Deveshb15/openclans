@@ -36,26 +36,48 @@ export const GAME_CONFIG = {
 
   // Terrain colors (flat, for minimap)
   TERRAIN_COLORS: {
-    grass: 0x4caf50,
-    dirt: 0x8d6e63,
-    stone: 0x9e9e9e,
+    plains: 0x4caf50,
+    fertile: 0x2e7d32,
+    forest: 0x1b5e20,
+    mountain: 0x78909c,
     water: 0x2196f3,
-    sand: 0xfdd835,
+    riverbank: 0x8d6e63,
+    desert: 0xfdd835,
   } as Record<string, number>,
 
   // Building colors (flat, for minimap)
   BUILDING_COLORS: {
-    house: 0x8b4513,
+    // Tier 1
+    wooden_hut: 0xc4956a,
     farm: 0xffd700,
-    lumbermill: 0x228b22,
-    quarry: 0x808080,
-    market: 0xff6347,
+    sawmill: 0x228b22,
+    storage_shed: 0x8b6b4a,
+    dirt_road: 0x8d8d8d,
+    well: 0x2196f3,
+    // Tier 2
+    kiln: 0xbf360c,
+    stone_house: 0xa07850,
+    marketplace: 0xff6347,
+    stone_wall: 0xa0a0a0,
+    warehouse: 0x6d4c41,
+    paved_road: 0x696969,
     workshop: 0xdaa520,
-    tavern: 0x8b0000,
-    townhall: 0x4169e1,
-    wall: 0xa0a0a0,
-    garden: 0x32cd32,
+    inn: 0x8b0000,
+    // Tier 3
+    cement_works: 0x757575,
+    town_hall: 0x4169e1,
+    apartment_block: 0x90a4ae,
+    bank: 0xffc107,
+    university: 0x1565c0,
+    hospital: 0xf44336,
+    commercial_tower: 0x00897b,
+    forge: 0xff6f00,
+    embassy: 0x7b1fa2,
+    // Tier 4
+    skyscraper: 0x546e7a,
+    grand_bazaar: 0xe65100,
+    mint: 0xffd700,
     monument: 0xffffff,
-    road: 0x696969,
+    spaceport: 0x37474f,
   } as Record<string, number>,
 };

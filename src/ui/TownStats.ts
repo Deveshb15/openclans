@@ -6,7 +6,8 @@ import type { SpectatorState } from "../shared/types";
 
 /**
  * DOM-based stats bar at the top of the screen.
- * Shows population, buildings, active trades, day/night, connection status.
+ * Shows population, buildings, active trades, GDP, treasury, events,
+ * day/night, connection status.
  */
 export class TownStats {
   private container: HTMLElement;
@@ -16,6 +17,9 @@ export class TownStats {
   private dayNightEl: HTMLElement;
   private connectionEl: HTMLElement;
   private tickEl: HTMLElement;
+  private gdpEl: HTMLElement;
+  private treasuryEl: HTMLElement;
+  private eventsEl: HTMLElement;
 
   private _connected = false;
   private _isNight = false;
@@ -42,6 +46,21 @@ export class TownStats {
     const trades = this.createStatItem("Trades", "0");
     this.tradesEl = trades.valueEl;
     this.container.appendChild(trades.wrapper);
+
+    // --- GDP ---
+    const gdp = this.createStatItem("GDP", "0", "#66bb6a");
+    this.gdpEl = gdp.valueEl;
+    this.container.appendChild(gdp.wrapper);
+
+    // --- Treasury ---
+    const treasury = this.createStatItem("Treasury", "0", "#ffc107");
+    this.treasuryEl = treasury.valueEl;
+    this.container.appendChild(treasury.wrapper);
+
+    // --- Events ---
+    const events = this.createStatItem("Events", "0", "#e91e63");
+    this.eventsEl = events.valueEl;
+    this.container.appendChild(events.wrapper);
 
     // --- Tick ---
     const tick = this.createStatItem("Tick", "0");
@@ -83,6 +102,31 @@ export class TownStats {
     this.tradesEl.textContent = String(activeTradeCount);
 
     this.tickEl.textContent = String(state.tick);
+
+    // GDP — computed from building token incomes if worldGDP not available
+    const worldGDP = (state as any).worldGDP;
+    if (worldGDP !== undefined && worldGDP !== null) {
+      this.gdpEl.textContent = String(Math.floor(worldGDP));
+    } else {
+      // Fallback: sum of tokenIncome across all buildings
+      let gdpSum = 0;
+      for (const b of Object.values(state.buildings)) {
+        if (b.completed) gdpSum += b.tokenIncome;
+      }
+      this.gdpEl.textContent = String(gdpSum);
+    }
+
+    // Treasury
+    const publicTreasury = state.publicTreasury ?? 0;
+    this.treasuryEl.textContent = String(Math.floor(publicTreasury));
+
+    // Active events
+    const activeEvents = state.worldEvents ?? [];
+    const currentTick = state.tick;
+    const activeCount = activeEvents.filter(
+      (e) => e.startTick <= currentTick && e.endTick >= currentTick
+    ).length;
+    this.eventsEl.textContent = String(activeCount);
   }
 
   /** Update the connection status indicator */

@@ -1,5 +1,5 @@
 // ============================================================
-// MoltClans - Building Type → Sprite Mapping
+// MoltClans - Building Type -> Sprite Mapping
 // ============================================================
 
 import type { BuildingType } from "../../shared/types";
@@ -26,7 +26,8 @@ export interface BuildingVisualConfig {
 }
 
 export const BUILDING_VISUAL_CONFIG: Record<BuildingType, BuildingVisualConfig> = {
-  house: {
+  // Tier 1
+  wooden_hut: {
     smoke: true, flag: false, gear: false, cropSway: false,
     warmGlow: true, signSway: false, flowerBob: false, glowPulse: false,
     dustParticles: false,
@@ -36,19 +37,55 @@ export const BUILDING_VISUAL_CONFIG: Record<BuildingType, BuildingVisualConfig> 
     warmGlow: false, signSway: false, flowerBob: false, glowPulse: false,
     dustParticles: false,
   },
-  lumbermill: {
+  sawmill: {
     smoke: false, flag: false, gear: false, cropSway: false,
     warmGlow: false, signSway: false, flowerBob: false, glowPulse: false,
     dustParticles: true,
   },
-  quarry: {
+  storage_shed: {
     smoke: false, flag: false, gear: false, cropSway: false,
     warmGlow: false, signSway: false, flowerBob: false, glowPulse: false,
-    dustParticles: true,
+    dustParticles: false,
   },
-  market: {
+  dirt_road: {
+    smoke: false, flag: false, gear: false, cropSway: false,
+    warmGlow: false, signSway: false, flowerBob: false, glowPulse: false,
+    dustParticles: false,
+  },
+  well: {
+    smoke: false, flag: false, gear: false, cropSway: false,
+    warmGlow: false, signSway: false, flowerBob: false, glowPulse: false,
+    dustParticles: false,
+  },
+  // Tier 2
+  kiln: {
+    smoke: true, flag: false, gear: false, cropSway: false,
+    warmGlow: true, signSway: false, flowerBob: false, glowPulse: false,
+    dustParticles: false,
+  },
+  stone_house: {
+    smoke: true, flag: false, gear: false, cropSway: false,
+    warmGlow: true, signSway: false, flowerBob: false, glowPulse: false,
+    dustParticles: false,
+  },
+  marketplace: {
     smoke: false, flag: false, gear: false, cropSway: false,
     warmGlow: false, signSway: true, flowerBob: false, glowPulse: false,
+    dustParticles: false,
+  },
+  stone_wall: {
+    smoke: false, flag: false, gear: false, cropSway: false,
+    warmGlow: false, signSway: false, flowerBob: false, glowPulse: false,
+    dustParticles: false,
+  },
+  warehouse: {
+    smoke: false, flag: false, gear: false, cropSway: false,
+    warmGlow: false, signSway: false, flowerBob: false, glowPulse: false,
+    dustParticles: false,
+  },
+  paved_road: {
+    smoke: false, flag: false, gear: false, cropSway: false,
+    warmGlow: false, signSway: false, flowerBob: false, glowPulse: false,
     dustParticles: false,
   },
   workshop: {
@@ -56,24 +93,71 @@ export const BUILDING_VISUAL_CONFIG: Record<BuildingType, BuildingVisualConfig> 
     warmGlow: false, signSway: false, flowerBob: false, glowPulse: false,
     dustParticles: false,
   },
-  tavern: {
-    smoke: false, flag: false, gear: false, cropSway: false,
+  inn: {
+    smoke: true, flag: false, gear: false, cropSway: false,
     warmGlow: true, signSway: true, flowerBob: false, glowPulse: false,
     dustParticles: false,
   },
-  townhall: {
+  // Tier 3
+  cement_works: {
+    smoke: true, flag: false, gear: true, cropSway: false,
+    warmGlow: false, signSway: false, flowerBob: false, glowPulse: false,
+    dustParticles: true,
+  },
+  town_hall: {
     smoke: false, flag: true, gear: false, cropSway: false,
     warmGlow: false, signSway: false, flowerBob: false, glowPulse: false,
     dustParticles: false,
   },
-  wall: {
+  apartment_block: {
     smoke: false, flag: false, gear: false, cropSway: false,
+    warmGlow: true, signSway: false, flowerBob: false, glowPulse: false,
+    dustParticles: false,
+  },
+  bank: {
+    smoke: false, flag: false, gear: false, cropSway: false,
+    warmGlow: false, signSway: false, flowerBob: false, glowPulse: true,
+    dustParticles: false,
+  },
+  university: {
+    smoke: false, flag: true, gear: false, cropSway: false,
+    warmGlow: true, signSway: false, flowerBob: false, glowPulse: false,
+    dustParticles: false,
+  },
+  hospital: {
+    smoke: false, flag: false, gear: false, cropSway: false,
+    warmGlow: true, signSway: false, flowerBob: false, glowPulse: true,
+    dustParticles: false,
+  },
+  commercial_tower: {
+    smoke: false, flag: false, gear: false, cropSway: false,
+    warmGlow: true, signSway: false, flowerBob: false, glowPulse: false,
+    dustParticles: false,
+  },
+  forge: {
+    smoke: true, flag: false, gear: true, cropSway: false,
+    warmGlow: true, signSway: false, flowerBob: false, glowPulse: false,
+    dustParticles: true,
+  },
+  embassy: {
+    smoke: false, flag: true, gear: false, cropSway: false,
     warmGlow: false, signSway: false, flowerBob: false, glowPulse: false,
     dustParticles: false,
   },
-  garden: {
+  // Tier 4
+  skyscraper: {
     smoke: false, flag: false, gear: false, cropSway: false,
-    warmGlow: false, signSway: false, flowerBob: true, glowPulse: false,
+    warmGlow: true, signSway: false, flowerBob: false, glowPulse: false,
+    dustParticles: false,
+  },
+  grand_bazaar: {
+    smoke: false, flag: true, gear: false, cropSway: false,
+    warmGlow: true, signSway: true, flowerBob: false, glowPulse: false,
+    dustParticles: false,
+  },
+  mint: {
+    smoke: false, flag: false, gear: true, cropSway: false,
+    warmGlow: false, signSway: false, flowerBob: false, glowPulse: true,
     dustParticles: false,
   },
   monument: {
@@ -81,10 +165,10 @@ export const BUILDING_VISUAL_CONFIG: Record<BuildingType, BuildingVisualConfig> 
     warmGlow: false, signSway: false, flowerBob: false, glowPulse: true,
     dustParticles: false,
   },
-  road: {
-    smoke: false, flag: false, gear: false, cropSway: false,
-    warmGlow: false, signSway: false, flowerBob: false, glowPulse: false,
-    dustParticles: false,
+  spaceport: {
+    smoke: true, flag: true, gear: false, cropSway: false,
+    warmGlow: false, signSway: false, flowerBob: false, glowPulse: true,
+    dustParticles: true,
   },
 };
 
@@ -92,6 +176,13 @@ export const BUILDING_VISUAL_CONFIG: Record<BuildingType, BuildingVisualConfig> 
 export const RESOURCE_ORB_COLORS: Record<string, number> = {
   wood: 0x8b4513,
   stone: 0x9e9e9e,
+  water: 0x2196f3,
   food: 0x4caf50,
-  gold: 0xffd700,
+  clay: 0xd4a574,
+  planks: 0xdeb887,
+  bricks: 0xb71c1c,
+  cement: 0x757575,
+  glass: 0x81d4fa,
+  steel: 0x546e7a,
+  tokens: 0xffd700,
 };
