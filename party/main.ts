@@ -1,4 +1,5 @@
-import type * as Party from "partykit/server";
+import { Server, routePartykitRequest } from "partyserver";
+import type { Connection, ConnectionContext } from "partyserver";
 import type {
   ApiResponse,
   WSMessage,
@@ -8,6 +9,11 @@ import type {
   Building,
   Resources,
 } from "../src/shared/types";
+
+interface Env {
+  main: DurableObjectNamespace;
+  DATABASE_URL: string;
+}
 import {
   RESOURCE_TICK_INTERVAL_MS,
   MIN_PLOT_SIZE,
@@ -1145,12 +1151,10 @@ Place buildings strategically to maximize bonuses. Adjacency means tiles are tou
  * Uses PostgreSQL (Neon) via Drizzle ORM for persistent storage.
  * Grid is kept in-memory and reconstructed from DB on startup.
  */
-export default class MoltClansServer implements Party.Server {
+export class MoltClansServer extends Server<Env> {
   private db!: Db;
   private grid: GridCell[][] = [];
   private tickInterval: ReturnType<typeof setInterval> | null = null;
-
-  constructor(readonly room: Party.Room) {}
 
   /**
    * Called when the party room starts up.
@@ -1158,7 +1162,7 @@ export default class MoltClansServer implements Party.Server {
    */
   async onStart(): Promise<void> {
     try {
-      const dbUrl = (this.room.env as Record<string, string>).DATABASE_URL;
+      const dbUrl = this.env.DATABASE_URL;
       if (!dbUrl) {
         throw new Error("DATABASE_URL environment variable not set");
       }
@@ -1207,7 +1211,7 @@ export default class MoltClansServer implements Party.Server {
    * Called when a WebSocket client connects.
    * Sends the full spectator state assembled from parallel DB queries.
    */
-  async onConnect(conn: Party.Connection): Promise<void> {
+  async onConnect(conn: Connection, ctx: ConnectionContext): Promise<void> {
     try {
       const [
         agentRows,
@@ -1280,8 +1284,8 @@ export default class MoltClansServer implements Party.Server {
    * Called when a WebSocket message is received.
    */
   async onMessage(
-    message: string | ArrayBuffer | ArrayBufferView,
-    sender: Party.Connection
+    connection: Connection,
+    message: string | ArrayBuffer | ArrayBufferView
   ): Promise<void> {
     // Future: handle real-time messages from clients
   }
@@ -1289,14 +1293,14 @@ export default class MoltClansServer implements Party.Server {
   /**
    * Called when a WebSocket client disconnects.
    */
-  async onClose(conn: Party.Connection): Promise<void> {
+  async onClose(connection: Connection, code?: number, reason?: string, wasClean?: boolean): Promise<void> {
     // Could track which agent disconnected if we map connections to agents
   }
 
   /**
    * Main REST API request handler.
    */
-  async onRequest(req: Party.Request): Promise<Response> {
+  async onRequest(req: Request): Promise<Response> {
     // Handle CORS preflight
     if (req.method === "OPTIONS") {
       return this.corsResponse(new Response(null, { status: 204 }));
@@ -1332,7 +1336,7 @@ export default class MoltClansServer implements Party.Server {
   private async routeRequest(
     method: string,
     segments: string[],
-    req: Party.Request,
+    req: Request,
     url: URL
   ): Promise<Response> {
     const seg0 = segments[0] || "";
@@ -1400,7 +1404,7 @@ export default class MoltClansServer implements Party.Server {
 
     // ======================= AUTHENTICATED ROUTES =======================
 
-    const agent = await authenticateAgent(req as unknown as Request, this.db);
+    const agent = await authenticateAgent(req, this.db);
 
     if (!agent) {
       if (
@@ -2066,7 +2070,7 @@ export default class MoltClansServer implements Party.Server {
     };
     const payload = JSON.stringify(message);
 
-    for (const conn of this.room.getConnections()) {
+    for (const conn of this.getConnections()) {
       try {
         conn.send(payload);
       } catch {
@@ -2077,7 +2081,7 @@ export default class MoltClansServer implements Party.Server {
 
   // ======================= HELPERS =======================
 
-  private async parseBody(req: Party.Request): Promise<Record<string, unknown>> {
+  private async parseBody(req: Request): Promise<Record<string, unknown>> {
     try {
       const text = await req.text();
       if (!text) return {};
@@ -2119,3 +2123,12 @@ export default class MoltClansServer implements Party.Server {
     });
   }
 }
+
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    return (
+      (await routePartykitRequest(request, env)) ||
+      new Response("Not Found", { status: 404 })
+    );
+  },
+} satisfies ExportedHandler<Env>;
