@@ -80,7 +80,7 @@ export async function handleClaimPlot(
 
   await insertPlot(db, plot);
   await updateAgent(db, agent.id, {
-    plotCount: agent.plotCount + 1,
+    plotCount: agent.plotCount + width * height,
     x: x + Math.floor(width / 2),
     y: y + Math.floor(height / 2),
   });

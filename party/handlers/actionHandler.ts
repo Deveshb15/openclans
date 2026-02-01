@@ -458,7 +458,7 @@ export async function handleClaimTile(
   // Deduct tokens and update counts
   await updateAgent(db, agent.id, {
     tokens: agent.inventory.tokens - totalCost,
-    plotCount: agent.plotCount + 1,
+    plotCount: agent.plotCount + width * height,
   });
 
   // Mark grid
