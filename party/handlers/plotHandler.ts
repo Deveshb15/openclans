@@ -138,9 +138,11 @@ export async function handleClaimPlot(
   // Save plot to DB
   await insertPlot(db, plot);
 
-  // Update agent plot count
+  // Update agent plot count and position to plot center
   await updateAgent(db, agent.id, {
     plotCount: agent.plotCount + 1,
+    x: x + Math.floor(width / 2),
+    y: y + Math.floor(height / 2),
   });
 
   // Mark grid cells (in-memory)

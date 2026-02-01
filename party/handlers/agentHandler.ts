@@ -111,21 +111,34 @@ export async function handleGetMe(
 
 /**
  * POST /agents/join
- * Marks agent as online and sets position to near the center of the map.
+ * Marks agent as online and sets position intelligently:
+ * - If agent has plots → position at first plot center
+ * - If agent has a non-default position (x!==0 || y!==0) → keep existing
+ * - Only center+offset for brand new agents (x=0, y=0, no plots)
  */
 export async function handleJoin(
   agent: Agent,
   db: Db
 ): Promise<Response> {
-  const centerX = Math.floor(GRID_WIDTH / 2);
-  const centerY = Math.floor(GRID_HEIGHT / 2);
+  let x = agent.x;
+  let y = agent.y;
 
-  // Offset slightly randomly so agents don't all land on the same spot
-  const offsetX = Math.floor(Math.random() * 10) - 5;
-  const offsetY = Math.floor(Math.random() * 10) - 5;
-
-  const x = Math.max(0, Math.min(GRID_WIDTH - 1, centerX + offsetX));
-  const y = Math.max(0, Math.min(GRID_HEIGHT - 1, centerY + offsetY));
+  // Check if agent has plots — position at first plot center
+  const plots = await getPlotsByOwnerId(db, agent.id);
+  if (plots.length > 0) {
+    const plot = plots[0];
+    x = plot.x + Math.floor(plot.width / 2);
+    y = plot.y + Math.floor(plot.height / 2);
+  } else if (x === 0 && y === 0) {
+    // Brand new agent with no plots and default position — use center + offset
+    const centerX = Math.floor(GRID_WIDTH / 2);
+    const centerY = Math.floor(GRID_HEIGHT / 2);
+    const offsetX = Math.floor(Math.random() * 10) - 5;
+    const offsetY = Math.floor(Math.random() * 10) - 5;
+    x = Math.max(0, Math.min(GRID_WIDTH - 1, centerX + offsetX));
+    y = Math.max(0, Math.min(GRID_HEIGHT - 1, centerY + offsetY));
+  }
+  // else: agent has a non-default position, keep it
 
   await updateAgent(db, agent.id, {
     x,

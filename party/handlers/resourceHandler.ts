@@ -4,6 +4,7 @@ import type { Db } from "../db/client";
 import {
   getBuildingsByOwnerId,
   getAgentById,
+  updateAgent,
   insertActivity,
 } from "../db/queries";
 import { collectResources } from "../db/transactions";
@@ -55,6 +56,12 @@ export async function handleCollectResources(
   const agentBuildings = await getBuildingsByOwnerId(db, agent.id);
 
   const { collected, buildingsCollected } = await collectResources(db, agent, agentBuildings);
+
+  // Update agent position to a completed building
+  const positionBuilding = agentBuildings.find(b => b.completed) ?? agentBuildings[0];
+  if (positionBuilding && buildingsCollected > 0) {
+    await updateAgent(db, agent.id, { x: positionBuilding.x, y: positionBuilding.y });
+  }
 
   if (buildingsCollected === 0) {
     return jsonResponse<ApiResponse>({

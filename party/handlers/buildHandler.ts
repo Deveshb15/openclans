@@ -289,13 +289,15 @@ export async function handleUpgradeBuilding(
     );
   }
 
-  // Deduct resources and upgrade
+  // Deduct resources, upgrade, and update agent position to building
   await updateAgent(db, agent.id, {
     resourceWood: agent.resources.wood - cost.wood,
     resourceStone: agent.resources.stone - cost.stone,
     resourceFood: agent.resources.food - cost.food,
     resourceGold: agent.resources.gold - cost.gold,
     prestige: agent.prestige + PRESTIGE.UPGRADE,
+    x: building.x,
+    y: building.y,
   });
 
   await updateBuilding(db, buildingId, {
@@ -455,12 +457,14 @@ export async function handleContributeBuilding(
     contributed[resKey] = toContribute;
   }
 
-  // Deduct from agent
+  // Deduct from agent and update position to building
   await updateAgent(db, agent.id, {
     resourceWood: agent.resources.wood - contributed.wood,
     resourceStone: agent.resources.stone - contributed.stone,
     resourceFood: agent.resources.food - contributed.food,
     resourceGold: agent.resources.gold - contributed.gold,
+    x: building.x,
+    y: building.y,
   });
 
   // Record contribution

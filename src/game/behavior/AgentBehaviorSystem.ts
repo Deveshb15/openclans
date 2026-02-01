@@ -41,10 +41,18 @@ export class AgentBehaviorSystem {
 
   /** Create a new behavior for an agent */
   private createBehavior(agent: PublicAgent, state: SpectatorState): AgentBehavior {
-    const behavior = new AgentBehavior(agent.id, agent.x, agent.y, this.pathfinder);
+    // Use plot center as start position if agent has plots (prevents center-spawn on stale DB positions)
+    let startX = agent.x;
+    let startY = agent.y;
+    const plots = Object.values(state.plots).filter((p) => p.ownerId === agent.id);
+    if (plots.length > 0) {
+      startX = plots[0].x + Math.floor(plots[0].width / 2);
+      startY = plots[0].y + Math.floor(plots[0].height / 2);
+    }
+
+    const behavior = new AgentBehavior(agent.id, startX, startY, this.pathfinder);
 
     // Set home to first owned plot or agent position
-    const plots = Object.values(state.plots).filter((p) => p.ownerId === agent.id);
     if (plots.length > 0) {
       behavior.setHome(plots[0].x + 1, plots[0].y + 1);
     }

@@ -99,7 +99,7 @@ export async function placeBuilding(
   agent: Agent,
   cost: Resources
 ): Promise<void> {
-  // Deduct resources from agent
+  // Deduct resources from agent and update position to building location
   await db
     .update(agents)
     .set({
@@ -109,6 +109,8 @@ export async function placeBuilding(
       resourceGold: sql`${agents.resourceGold} - ${cost.gold}`,
       buildingCount: sql`${agents.buildingCount} + 1`,
       prestige: sql`${agents.prestige} + ${PRESTIGE.BUILD}`,
+      x: building.x,
+      y: building.y,
     })
     .where(eq(agents.id, agent.id));
 

@@ -1235,9 +1235,23 @@ export class MoltClansServer extends Server<Env> {
         getTickInfo(this.db),
       ]);
 
-      // Build spectator state (strip apiKeys)
+      // Build plot-by-owner lookup for position correction
+      const plotsByOwner: Record<string, typeof plotRows[0][]> = {};
+      for (const p of plotRows) {
+        if (!plotsByOwner[p.ownerId]) plotsByOwner[p.ownerId] = [];
+        plotsByOwner[p.ownerId].push(p);
+      }
+
+      // Build spectator state (strip apiKeys, fix positions)
       const publicAgents: Record<string, ReturnType<typeof toPublicAgent>> = {};
       for (const a of agentRows) {
+        // Correct agent position from plots/buildings if DB has stale center position
+        const ownerPlots = plotsByOwner[a.id];
+        if (ownerPlots && ownerPlots.length > 0) {
+          const plot = ownerPlots[0];
+          a.x = plot.x + Math.floor(plot.width / 2);
+          a.y = plot.y + Math.floor(plot.height / 2);
+        }
         publicAgents[a.id] = toPublicAgent(a);
       }
 
@@ -1455,6 +1469,7 @@ export class MoltClansServer extends Server<Env> {
       if (method === "POST" && seg1 === "join") {
         const response = await handleJoin(agent, this.db);
         this.broadcastEvent("agent_joined", { agentId: agent.id });
+        await this.broadcastAgentPosition(agent.id);
         return response;
       }
       if (method === "GET" && seg1 === "me" && seg2 === "notifications") {
@@ -1481,6 +1496,7 @@ export class MoltClansServer extends Server<Env> {
         const body = await this.parseBody(req);
         const response = await handleClaimPlot(body, agent, this.db, this.grid);
         this.broadcastEvent("plot_claimed", { agentId: agent.id });
+        await this.broadcastAgentPosition(agent.id);
         return response;
       }
       if (method === "GET" && !seg1) {
@@ -1526,6 +1542,7 @@ export class MoltClansServer extends Server<Env> {
         this.broadcastEvent("building_placed", {
           agentId: agent.id,
         });
+        await this.broadcastAgentPosition(agent.id);
         return response;
       }
       if (method === "GET" && !seg1) {
@@ -1540,6 +1557,7 @@ export class MoltClansServer extends Server<Env> {
           buildingId: seg1,
           agentId: agent.id,
         });
+        await this.broadcastAgentPosition(agent.id);
         return response;
       }
       if (method === "DELETE" && seg1 && !seg2) {
@@ -1548,6 +1566,7 @@ export class MoltClansServer extends Server<Env> {
           buildingId: seg1,
           agentId: agent.id,
         });
+        await this.broadcastAgentPosition(agent.id);
         return response;
       }
       if (method === "POST" && seg1 && seg2 === "contribute") {
@@ -1562,6 +1581,7 @@ export class MoltClansServer extends Server<Env> {
           buildingId: seg1,
           agentId: agent.id,
         });
+        await this.broadcastAgentPosition(agent.id);
         return response;
       }
     }
@@ -1576,6 +1596,7 @@ export class MoltClansServer extends Server<Env> {
         this.broadcastEvent("resources_collected", {
           agentId: agent.id,
         });
+        await this.broadcastAgentPosition(agent.id);
         return response;
       }
     }
@@ -2061,6 +2082,12 @@ export class MoltClansServer extends Server<Env> {
   }
 
   // ======================= BROADCAST =======================
+
+  private async broadcastAgentPosition(agentId: string): Promise<void> {
+    const agent = await getAgentById(this.db, agentId);
+    if (!agent) return;
+    this.broadcastEvent("agent_moved", { agentId: agent.id, x: agent.x, y: agent.y });
+  }
 
   private broadcastEvent(type: WSMessageType, data: unknown): void {
     const message: WSMessage = {
