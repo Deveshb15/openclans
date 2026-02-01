@@ -97,11 +97,11 @@ export function getMaxPlots(agent: Agent, buildings: Record<string, Building>): 
   for (const building of Object.values(buildings)) {
     if (building.ownerId === agent.id && building.completed) {
       if (building.type === "wooden_hut" || building.type === "stone_house") {
-        extra += building.level;
+        extra += 10 * building.level;
       }
     }
   }
-  return 20 + extra;
+  return 200 + extra;
 }
 
 /**
@@ -169,7 +169,7 @@ export function calculatePrestigeLevel(reputation: number): string {
 /**
  * Strips the apiKey from an agent to produce a public-safe version.
  */
-export function toPublicAgent(agent: Agent): PublicAgent {
+export function toPublicAgent(agent: Agent, buildings: Record<string, Building>): PublicAgent {
   return {
     id: agent.id,
     name: agent.name,
@@ -178,7 +178,7 @@ export function toPublicAgent(agent: Agent): PublicAgent {
     y: agent.y,
     reputation: agent.reputation,
     personality: agent.personality,
-    currentTier: agent.currentTier,
+    currentTier: getAgentTier(agent, buildings),
     isStarving: agent.isStarving,
     clanId: agent.clanId,
     joinedAt: agent.joinedAt,

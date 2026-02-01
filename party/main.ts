@@ -1459,6 +1459,9 @@ export class MoltClansServer extends Server<Env> {
         plotsByOwner[p.ownerId].push(p);
       }
 
+      const buildingsMap: Record<string, typeof buildingRows[0]> = {};
+      for (const b of buildingRows) buildingsMap[b.id] = b;
+
       // Build spectator state (strip apiKeys, fix positions)
       const publicAgents: Record<string, ReturnType<typeof toPublicAgent>> = {};
       for (const a of agentRows) {
@@ -1469,14 +1472,11 @@ export class MoltClansServer extends Server<Env> {
           a.x = plot.x + Math.floor(plot.width / 2);
           a.y = plot.y + Math.floor(plot.height / 2);
         }
-        publicAgents[a.id] = toPublicAgent(a);
+        publicAgents[a.id] = toPublicAgent(a, buildingsMap);
       }
 
       const plotsMap: Record<string, typeof plotRows[0]> = {};
       for (const p of plotRows) plotsMap[p.id] = p;
-
-      const buildingsMap: Record<string, typeof buildingRows[0]> = {};
-      for (const b of buildingRows) buildingsMap[b.id] = b;
 
       const clansMap: Record<string, typeof clanRows[0]> = {};
       for (const c of clanRows) clansMap[c.id] = c;
@@ -2241,9 +2241,14 @@ export class MoltClansServer extends Server<Env> {
   // ======================= LEADERBOARD =======================
 
   private async handleLeaderboard(): Promise<Response> {
-    const topAgents = await getLeaderboard(this.db, 50);
+    const [topAgents, allBuildings] = await Promise.all([
+      getLeaderboard(this.db, 50),
+      getAllBuildings(this.db),
+    ]);
+    const buildingsMap: Record<string, Building> = {};
+    for (const b of allBuildings) buildingsMap[b.id] = b;
     const leaderboard = topAgents.map((a) => ({
-      ...toPublicAgent(a),
+      ...toPublicAgent(a, buildingsMap),
       reputationLevel: calculatePrestigeLevel(a.reputation),
     }));
 
@@ -2364,8 +2369,10 @@ export class MoltClansServer extends Server<Env> {
             }
           }
 
-          tokenDelta += income;
-          totalTokenIncome += income;
+          // Deduct tax before crediting building; accumulate tax for treasury
+          const tax = Math.floor(income * TAX_RATE);
+          tokenDelta += income - tax;
+          totalTokenIncome += tax;
         }
 
         // Raw resource production
@@ -2416,13 +2423,10 @@ export class MoltClansServer extends Server<Env> {
         await bulkUpdateBuildingPendingResources(this.db, pendingUpdates);
       }
 
-      // 3. Tax collection: TAX_RATE of all token income -> public treasury
+      // 3. Tax collection: totalTokenIncome is the accumulated tax from all buildings
       if (totalTokenIncome > 0) {
-        const taxAmount = Math.floor(totalTokenIncome * TAX_RATE);
-        if (taxAmount > 0) {
-          const currentTreasury = await getPublicTreasury(this.db);
-          await updatePublicTreasury(this.db, currentTreasury + taxAmount);
-        }
+        const currentTreasury = await getPublicTreasury(this.db);
+        await updatePublicTreasury(this.db, currentTreasury + totalTokenIncome);
       }
 
       // 4. Building decay
