@@ -1819,7 +1819,7 @@ export class MoltClansServer extends Server<Env> {
         return handleGetMe(agent, this.db);
       }
       if (method === "POST" && seg1 === "join") {
-        const response = await handleJoin(agent, this.db);
+        const response = await handleJoin(agent, this.db, this.grid);
         this.broadcastEvent("agent_joined", { agentId: agent.id });
         await this.broadcastAgentPosition(agent.id);
         return response;

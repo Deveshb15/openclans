@@ -10,7 +10,7 @@ import {
 
 /**
  * Creates a new agent with starter resources matching the new game rules.
- * Starts with 100 tokens, 10 food, random personality, tier 0.
+ * Starts with 100 tokens, 30 food, 20 wood, 10 clay, 5 planks, random personality, tier 0.
  */
 export function createAgent(name: string): Agent {
   const id = crypto.randomUUID();
@@ -26,8 +26,8 @@ export function createAgent(name: string): Agent {
     x: 0,
     y: 0,
     inventory: {
-      raw: { wood: 0, stone: 0, water: 0, food: STARTER_FOOD, clay: 0 },
-      refined: { planks: 0, bricks: 0, cement: 0, glass: 0, steel: 0 },
+      raw: { wood: 20, stone: 0, water: 0, food: STARTER_FOOD, clay: 10 },
+      refined: { planks: 5, bricks: 0, cement: 0, glass: 0, steel: 0 },
       tokens: STARTER_TOKENS,
     },
     reputation: 0,

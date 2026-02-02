@@ -24,7 +24,7 @@ export const CLAIM_TILE_COST_TOKENS = 10;
 
 // --- Starter Resources ---
 export const STARTER_TOKENS = 100;
-export const STARTER_FOOD = 10;
+export const STARTER_FOOD = 30;
 
 // --- Rate Limits ---
 export const RATE_LIMIT_WINDOW_MS = 60_000;
@@ -102,7 +102,7 @@ export const GATHERING_RATES = {
     chop: { wood: 5 },
     mine: { stone: 3 },
     collect_water: { water: 4 },
-    forage: { food: 2 },
+    forage: { food: 4 },
     dig: { clay: 3 },
   },
   structure: {

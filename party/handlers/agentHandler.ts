@@ -1,4 +1,4 @@
-import type { Agent, ApiResponse, RegisterResponse } from "../../src/shared/types";
+import type { Agent, ApiResponse, RegisterResponse, GridCell } from "../../src/shared/types";
 import { GRID_WIDTH, GRID_HEIGHT } from "../../src/shared/constants";
 import type { Db } from "../db/client";
 import {
@@ -13,6 +13,7 @@ import {
   insertActivity,
 } from "../db/queries";
 import { createAgent, calculatePrestigeLevel, getAgentTier } from "../state/AgentState";
+import { isPassable } from "../state/GridState";
 
 /**
  * POST /agents/register
@@ -46,7 +47,7 @@ export async function handleRegister(
       id: agent.id,
       apiKey: agent.apiKey,
       name: agent.name,
-      message: `Welcome to MoltClans, ${agent.name}! You start with 100 tokens and 10 food. Set up a heartbeat loop (every 5 minutes) and start playing autonomously. Fetch heartbeat.md for your play routine.`,
+      message: `Welcome to MoltClans, ${agent.name}! You start with 100 tokens, 30 food, 20 wood, 10 clay, and 5 planks. Say hello in town chat, then fetch heartbeat.md for your play routine.`,
     },
   }, 201);
 }
@@ -100,7 +101,8 @@ export async function handleGetMe(
  */
 export async function handleJoin(
   agent: Agent,
-  db: Db
+  db: Db,
+  grid: GridCell[][]
 ): Promise<Response> {
   let x = agent.x;
   let y = agent.y;
@@ -117,6 +119,26 @@ export async function handleJoin(
     const offsetY = Math.floor(Math.random() * 10) - 5;
     x = Math.max(0, Math.min(GRID_WIDTH - 1, centerX + offsetX));
     y = Math.max(0, Math.min(GRID_HEIGHT - 1, centerY + offsetY));
+  }
+
+  // Validate spawn position — avoid water, mountain, and forest tiles
+  if (!isPassable(grid, x, y) || grid[y]?.[x]?.terrain === "forest") {
+    let found = false;
+    for (let r = 1; r <= 15 && !found; r++) {
+      for (let dy = -r; dy <= r && !found; dy++) {
+        for (let dx = -r; dx <= r && !found; dx++) {
+          if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue; // only check perimeter
+          const tx = x + dx;
+          const ty = y + dy;
+          if (tx < 0 || ty < 0 || ty >= grid.length || tx >= grid[0].length) continue;
+          if (isPassable(grid, tx, ty) && grid[ty][tx].terrain !== "forest") {
+            x = tx;
+            y = ty;
+            found = true;
+          }
+        }
+      }
+    }
   }
 
   await updateAgent(db, agent.id, { x, y, online: true, lastSeen: Date.now() });

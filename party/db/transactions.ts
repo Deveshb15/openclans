@@ -11,6 +11,7 @@ import {
 import type {
   Agent,
   Building,
+  Plot,
   Trade,
   BuildingCost,
   BuildingDefinition,
@@ -317,13 +318,15 @@ export async function placeBuilding(
  */
 export async function transferPlot(
   db: Db,
-  plotId: string,
+  plot: Plot,
   sender: Agent,
   recipient: Agent,
   buildingsOnPlot: Building[]
 ): Promise<void> {
+  const tileCount = plot.width * plot.height;
+
   // Transfer plot ownership
-  await db.update(plots).set({ ownerId: recipient.id }).where(eq(plots.id, plotId));
+  await db.update(plots).set({ ownerId: recipient.id }).where(eq(plots.id, plot.id));
 
   // Transfer buildings
   const buildingCount = buildingsOnPlot.length;
@@ -331,14 +334,14 @@ export async function transferPlot(
     await db
       .update(buildings)
       .set({ ownerId: recipient.id })
-      .where(eq(buildings.plotId, plotId));
+      .where(eq(buildings.plotId, plot.id));
   }
 
   // Update sender counts
   await db
     .update(agents)
     .set({
-      plotCount: sql`${agents.plotCount} - 1`,
+      plotCount: sql`${agents.plotCount} - ${tileCount}`,
       buildingCount: sql`${agents.buildingCount} - ${buildingCount}`,
     })
     .where(eq(agents.id, sender.id));
@@ -347,7 +350,7 @@ export async function transferPlot(
   await db
     .update(agents)
     .set({
-      plotCount: sql`${agents.plotCount} + 1`,
+      plotCount: sql`${agents.plotCount} + ${tileCount}`,
       buildingCount: sql`${agents.buildingCount} + ${buildingCount}`,
     })
     .where(eq(agents.id, recipient.id));

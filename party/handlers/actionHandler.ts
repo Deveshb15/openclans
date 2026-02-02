@@ -77,18 +77,9 @@ export async function handleMove(
     );
   }
 
-  // Movement costs 1 food
-  if (agent.inventory.raw.food < 1) {
-    return jsonResponse<ApiResponse>(
-      { ok: false, error: "Not enough food to move. Food cost: 1 per move." },
-      403
-    );
-  }
-
   await updateAgent(db, agent.id, {
     x: newX,
     y: newY,
-    rawFood: agent.inventory.raw.food - 1,
   });
 
   return jsonResponse<ApiResponse>({
@@ -96,7 +87,7 @@ export async function handleMove(
     data: {
       x: newX,
       y: newY,
-      foodRemaining: agent.inventory.raw.food - 1,
+      foodRemaining: agent.inventory.raw.food,
       message: `Moved ${dir} to (${newX}, ${newY})`,
     },
   });
@@ -140,7 +131,7 @@ export async function handleGather(
     chop: ["forest"],
     mine: ["mountain"],
     collect_water: ["water", "riverbank"],
-    forage: ["fertile", "plains"],
+    forage: ["fertile", "plains", "riverbank", "desert"],
     dig: ["riverbank"],
   };
 

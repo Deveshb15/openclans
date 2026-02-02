@@ -131,7 +131,7 @@ export async function handleReleasePlot(
 
   clearPlotFromGrid(grid, plot.id, plot.x, plot.y, plot.width, plot.height);
   await deletePlot(db, plotId);
-  await updateAgent(db, agent.id, { plotCount: agent.plotCount - 1 });
+  await updateAgent(db, agent.id, { plotCount: agent.plotCount - plot.width * plot.height });
   await insertActivity(db, "plot_released", agent.id, agent.name, `${agent.name} released a plot at (${plot.x}, ${plot.y})`);
 
   return jsonResponse<ApiResponse>({ ok: true, data: { message: "Plot released successfully" } });
@@ -163,7 +163,7 @@ export async function handleTransferPlot(
   }
 
   const buildingsOnPlot = await getBuildingsByPlotId(db, plotId);
-  await transferPlotTx(db, plotId, agent, recipient, buildingsOnPlot);
+  await transferPlotTx(db, plot, agent, recipient, buildingsOnPlot);
 
   return jsonResponse<ApiResponse>({
     ok: true,

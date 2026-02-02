@@ -64,7 +64,7 @@ function pickTerrain(
 
   // River: diagonal band from NW to SE through center
   const riverDist = Math.abs((x - centerX) - (y - centerY)) / Math.sqrt(2);
-  const riverWidth = 1.5 + noise2D(x, y, 99) * 1.5;
+  const riverWidth = 1.2 + noise2D(x, y, 99) * 1.0;
   if (riverDist < riverWidth) {
     if (riverDist > riverWidth - 0.8) {
       return "riverbank";
@@ -112,9 +112,10 @@ function pickTerrain(
     return "water";
   }
 
-  // Center: mostly plains
+  // Center: mostly plains, with some useful terrain
   if (distFromCenter < 0.25) {
     if (n < 0.15) return "fertile";
+    if (n2 > 0.75 && n3 < 0.5) return "forest"; // small forest groves near center
     return "plains";
   }
 
