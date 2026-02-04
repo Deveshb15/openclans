@@ -3,7 +3,6 @@
 // ============================================================
 
 import { ConvexClient } from "convex/browser";
-import type { api } from "../../convex/_generated/api";
 import type { SpectatorState, PublicAgent, Building, Plot, ChatMessage, ActivityEntry } from "../shared/types";
 
 export type StateUpdateCallback = (state: SpectatorState) => void;
@@ -13,7 +12,7 @@ export type StateUpdateCallback = (state: SpectatorState) => void;
  * Uses reactive queries to automatically receive updates when data changes.
  */
 export class MoltClansConvexClient {
-  private client: ConvexClient<typeof api>;
+  private client: ConvexClient;
   private subscriptions: Array<() => void> = [];
   private _connected = false;
 
