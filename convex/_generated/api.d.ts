@@ -26,6 +26,7 @@ import type * as http from "../http.js";
 import type * as plots_mutations from "../plots/mutations.js";
 import type * as plots_queries from "../plots/queries.js";
 import type * as resources_mutations from "../resources/mutations.js";
+import type * as skillContent from "../skillContent.js";
 import type * as tick_internal from "../tick/internal.js";
 import type * as town_queries from "../town/queries.js";
 import type * as trades_mutations from "../trades/mutations.js";
@@ -56,6 +57,7 @@ declare const fullApi: ApiFromModules<{
   "plots/mutations": typeof plots_mutations;
   "plots/queries": typeof plots_queries;
   "resources/mutations": typeof resources_mutations;
+  skillContent: typeof skillContent;
   "tick/internal": typeof tick_internal;
   "town/queries": typeof town_queries;
   "trades/mutations": typeof trades_mutations;
