@@ -3,7 +3,7 @@
 // ============================================================
 
 import { SimpleEmitter } from "../utils/SimpleEmitter";
-import type { WSMessage } from "./MessageTypes";
+import type { MoltClansConvexClient } from "./ConvexClient";
 import type {
   SpectatorState,
   PublicAgent,
@@ -18,15 +18,20 @@ import type {
 } from "../shared/types";
 
 /**
- * StateSync bridges the server WebSocket state into the Phaser world.
+ * StateSync bridges the Convex real-time state into the game world.
  * It holds the authoritative client-side SpectatorState and emits
  * events that scenes and entities can listen to.
+ *
+ * With Convex, we use reactive queries that automatically push updates
+ * when data changes, eliminating the need for WebSocket delta messages.
  */
 export class StateSync extends SimpleEmitter {
   private state: SpectatorState | null = null;
+  private convexClient: MoltClansConvexClient | null = null;
+  private subscriptions: Array<() => void> = [];
 
   constructor() {
-    super(); // SimpleEmitter has no required constructor, but call for clarity
+    super();
   }
 
   /** Whether we've received at least one full state */
@@ -39,379 +44,267 @@ export class StateSync extends SimpleEmitter {
     return this.state;
   }
 
-  /** Replace the entire state with a full snapshot from the server */
-  applyFullState(fullState: SpectatorState): void {
-    this.state = fullState;
-    this.emit("full-state", fullState);
+  /**
+   * Connect to Convex and start receiving real-time updates.
+   */
+  connect(convexClient: MoltClansConvexClient): void {
+    this.convexClient = convexClient;
+
+    // Subscribe to full spectator state
+    const unsubscribeState = convexClient.subscribeToState((newState) => {
+      this.handleStateUpdate(newState);
+    });
+    this.subscriptions.push(unsubscribeState);
   }
 
-  /** Apply an incremental delta message */
-  applyDelta(message: WSMessage): void {
-    if (!this.state) return;
+  /**
+   * Disconnect from all subscriptions.
+   */
+  disconnect(): void {
+    for (const unsubscribe of this.subscriptions) {
+      unsubscribe();
+    }
+    this.subscriptions = [];
+    this.convexClient = null;
+  }
 
-    switch (message.type) {
-      case "full_state": {
-        this.applyFullState(message.data as SpectatorState);
-        break;
-      }
+  /**
+   * Handle a full state update from Convex.
+   * Compare with previous state to emit appropriate delta events.
+   */
+  private handleStateUpdate(newState: SpectatorState): void {
+    const prevState = this.state;
+    this.state = newState;
 
-      case "agent_joined": {
-        const agent = message.data as PublicAgent;
-        this.state.agents[agent.id] = agent;
+    // If this is the first state, emit full-state event
+    if (!prevState) {
+      this.emit("full-state", newState);
+      return;
+    }
+
+    // Compare and emit delta events for changed entities
+    this.diffAgents(prevState.agents, newState.agents);
+    this.diffPlots(prevState.plots, newState.plots);
+    this.diffBuildings(prevState.buildings, newState.buildings);
+    this.diffClans(prevState.clans, newState.clans);
+    this.diffTrades(prevState.trades, newState.trades);
+    this.diffProposals(prevState.proposals, newState.proposals);
+    this.diffChat(prevState.chat, newState.chat);
+    this.diffActivity(prevState.activity, newState.activity);
+  }
+
+  private diffAgents(
+    prev: Record<string, PublicAgent>,
+    next: Record<string, PublicAgent>
+  ): void {
+    // Check for new/changed agents
+    for (const [id, agent] of Object.entries(next)) {
+      const prevAgent = prev[id];
+      if (!prevAgent) {
         this.emit("agent-joined", agent);
-        break;
-      }
-
-      case "agent_left": {
-        const { agentId } = message.data as { agentId: string };
-        const agent = this.state.agents[agentId];
-        if (agent) {
-          agent.online = false;
-          this.emit("agent-left", agent);
-        }
-        break;
-      }
-
-      case "agent_moved": {
-        const { agentId, x, y } = message.data as {
-          agentId: string;
-          x: number;
-          y: number;
-        };
-        const agent = this.state.agents[agentId];
-        if (agent) {
-          agent.x = x;
-          agent.y = y;
+      } else {
+        // Check for position changes
+        if (prevAgent.x !== agent.x || prevAgent.y !== agent.y) {
           this.emit("agent-moved", agent);
         }
-        break;
+        // Check for online status changes
+        if (prevAgent.online && !agent.online) {
+          this.emit("agent-left", agent);
+        }
+        // Check for starving status
+        if (!prevAgent.isStarving && agent.isStarving) {
+          this.emit("agent-starving", agent);
+        }
       }
+    }
+  }
 
-      case "plot_claimed": {
-        const plot = message.data as Plot;
-        this.state.plots[plot.id] = plot;
+  private diffPlots(
+    prev: Record<string, Plot>,
+    next: Record<string, Plot>
+  ): void {
+    // Check for new plots
+    for (const [id, plot] of Object.entries(next)) {
+      if (!prev[id]) {
         // Update grid cells
         for (let dy = 0; dy < plot.height; dy++) {
           for (let dx = 0; dx < plot.width; dx++) {
             const gx = plot.x + dx;
             const gy = plot.y + dy;
-            if (this.state.grid[gy] && this.state.grid[gy][gx]) {
+            if (this.state?.grid[gy] && this.state.grid[gy][gx]) {
               this.state.grid[gy][gx].plotId = plot.id;
             }
           }
         }
         this.emit("plot-claimed", plot);
-        break;
       }
+    }
 
-      case "plot_released": {
-        const { plotId } = message.data as { plotId: string };
-        const plot = this.state.plots[plotId];
-        if (plot) {
-          // Clear grid cells
-          for (let dy = 0; dy < plot.height; dy++) {
-            for (let dx = 0; dx < plot.width; dx++) {
-              const gx = plot.x + dx;
-              const gy = plot.y + dy;
-              if (this.state.grid[gy] && this.state.grid[gy][gx]) {
-                this.state.grid[gy][gx].plotId = null;
-              }
+    // Check for removed plots
+    for (const [id, plot] of Object.entries(prev)) {
+      if (!next[id]) {
+        // Clear grid cells
+        for (let dy = 0; dy < plot.height; dy++) {
+          for (let dx = 0; dx < plot.width; dx++) {
+            const gx = plot.x + dx;
+            const gy = plot.y + dy;
+            if (this.state?.grid[gy] && this.state.grid[gy][gx]) {
+              this.state.grid[gy][gx].plotId = null;
             }
           }
-          delete this.state.plots[plotId];
-          this.emit("plot-released", plotId);
         }
-        break;
+        this.emit("plot-released", id);
       }
+    }
+  }
 
-      case "building_placed": {
-        const building = message.data as Building;
-        this.state.buildings[building.id] = building;
+  private diffBuildings(
+    prev: Record<string, Building>,
+    next: Record<string, Building>
+  ): void {
+    // Check for new/changed buildings
+    for (const [id, building] of Object.entries(next)) {
+      const prevBuilding = prev[id];
+      if (!prevBuilding) {
         // Update grid cells
         for (let dy = 0; dy < building.height; dy++) {
           for (let dx = 0; dx < building.width; dx++) {
             const gx = building.x + dx;
             const gy = building.y + dy;
-            if (this.state.grid[gy] && this.state.grid[gy][gx]) {
+            if (this.state?.grid[gy] && this.state.grid[gy][gx]) {
               this.state.grid[gy][gx].buildingId = building.id;
             }
           }
         }
         this.emit("building-placed", building);
-        break;
-      }
-
-      case "building_progress": {
-        const { buildingId, progress } = message.data as {
-          buildingId: string;
-          progress: number;
-        };
-        const building = this.state.buildings[buildingId];
-        if (building) {
-          building.progress = progress;
+      } else {
+        // Check for progress changes
+        if (prevBuilding.progress !== building.progress) {
           this.emit("building-progress", building);
         }
-        break;
-      }
-
-      case "building_completed": {
-        const { buildingId } = message.data as { buildingId: string };
-        const building = this.state.buildings[buildingId];
-        if (building) {
-          building.progress = 100;
-          building.completed = true;
-          building.completedAt = message.timestamp;
+        // Check for completion
+        if (!prevBuilding.completed && building.completed) {
           this.emit("building-completed", building);
         }
-        break;
-      }
-
-      case "building_upgraded": {
-        const { buildingId, level } = message.data as {
-          buildingId: string;
-          level: number;
-        };
-        const building = this.state.buildings[buildingId];
-        if (building) {
-          building.level = level;
+        // Check for level changes
+        if (prevBuilding.level !== building.level) {
           this.emit("building-upgraded", building);
         }
-        break;
       }
+    }
 
-      case "building_demolished": {
-        const { buildingId } = message.data as { buildingId: string };
-        const building = this.state.buildings[buildingId];
-        if (building) {
-          // Clear grid cells
-          for (let dy = 0; dy < building.height; dy++) {
-            for (let dx = 0; dx < building.width; dx++) {
-              const gx = building.x + dx;
-              const gy = building.y + dy;
-              if (this.state.grid[gy] && this.state.grid[gy][gx]) {
-                this.state.grid[gy][gx].buildingId = null;
-              }
+    // Check for removed buildings
+    for (const [id, building] of Object.entries(prev)) {
+      if (!next[id]) {
+        // Clear grid cells
+        for (let dy = 0; dy < building.height; dy++) {
+          for (let dx = 0; dx < building.width; dx++) {
+            const gx = building.x + dx;
+            const gy = building.y + dy;
+            if (this.state?.grid[gy] && this.state.grid[gy][gx]) {
+              this.state.grid[gy][gx].buildingId = null;
             }
           }
-          delete this.state.buildings[buildingId];
-          this.emit("building-demolished", buildingId);
         }
-        break;
+        // Determine if it was demolished or decayed
+        this.emit("building-demolished", id);
       }
+    }
+  }
 
-      case "chat_message": {
-        const chatMsg = message.data as ChatMessage;
-        this.state.chat.push(chatMsg);
-        // Trim to prevent unbounded growth
-        if (this.state.chat.length > 200) {
-          this.state.chat = this.state.chat.slice(-200);
+  private diffClans(
+    prev: Record<string, Clan>,
+    next: Record<string, Clan>
+  ): void {
+    for (const [id, clan] of Object.entries(next)) {
+      const prevClan = prev[id];
+      if (!prevClan) {
+        this.emit("clan-created", clan);
+      } else {
+        // Check for member changes
+        const prevMembers = new Set(prevClan.memberIds);
+        const nextMembers = new Set(clan.memberIds);
+
+        for (const memberId of nextMembers) {
+          if (!prevMembers.has(memberId)) {
+            this.emit("clan-joined", { clanId: id, agentId: memberId });
+          }
         }
-        this.emit("chat-message", chatMsg);
-        break;
-      }
 
-      case "trade_created": {
-        const trade = message.data as Trade;
-        this.state.trades[trade.id] = trade;
+        for (const memberId of prevMembers) {
+          if (!nextMembers.has(memberId)) {
+            this.emit("clan-left", { clanId: id, agentId: memberId });
+          }
+        }
+      }
+    }
+  }
+
+  private diffTrades(
+    prev: Record<string, Trade>,
+    next: Record<string, Trade>
+  ): void {
+    for (const [id, trade] of Object.entries(next)) {
+      const prevTrade = prev[id];
+      if (!prevTrade) {
         this.emit("trade-created", trade);
-        break;
-      }
-
-      case "trade_accepted": {
-        const { tradeId, buyerId } = message.data as {
-          tradeId: string;
-          buyerId: string;
-        };
-        const trade = this.state.trades[tradeId];
-        if (trade) {
-          trade.status = "accepted";
-          trade.buyerId = buyerId;
-          trade.resolvedAt = message.timestamp;
+      } else if (prevTrade.status !== trade.status) {
+        if (trade.status === "accepted") {
           this.emit("trade-accepted", trade);
-        }
-        break;
-      }
-
-      case "trade_cancelled": {
-        const { tradeId } = message.data as { tradeId: string };
-        const trade = this.state.trades[tradeId];
-        if (trade) {
-          trade.status = "cancelled";
-          trade.resolvedAt = message.timestamp;
+        } else if (trade.status === "cancelled") {
           this.emit("trade-cancelled", trade);
         }
-        break;
       }
+    }
+  }
 
-      case "clan_created": {
-        const clan = message.data as Clan;
-        this.state.clans[clan.id] = clan;
-        this.emit("clan-created", clan);
-        break;
-      }
-
-      case "clan_joined": {
-        const { clanId, agentId } = message.data as {
-          clanId: string;
-          agentId: string;
-        };
-        const clan = this.state.clans[clanId];
-        if (clan && !clan.memberIds.includes(agentId)) {
-          clan.memberIds.push(agentId);
-        }
-        const agent = this.state.agents[agentId];
-        if (agent) {
-          agent.clanId = clanId;
-        }
-        this.emit("clan-joined", { clanId, agentId });
-        break;
-      }
-
-      case "clan_left": {
-        const { clanId, agentId } = message.data as {
-          clanId: string;
-          agentId: string;
-        };
-        const clan = this.state.clans[clanId];
-        if (clan) {
-          clan.memberIds = clan.memberIds.filter((id) => id !== agentId);
-        }
-        const agent = this.state.agents[agentId];
-        if (agent) {
-          agent.clanId = null;
-        }
-        this.emit("clan-left", { clanId, agentId });
-        break;
-      }
-
-      case "proposal_created": {
-        const proposal = message.data as Proposal;
-        this.state.proposals[proposal.id] = proposal;
+  private diffProposals(
+    prev: Record<string, Proposal>,
+    next: Record<string, Proposal>
+  ): void {
+    for (const [id, proposal] of Object.entries(next)) {
+      const prevProposal = prev[id];
+      if (!prevProposal) {
         this.emit("proposal-created", proposal);
-        break;
-      }
-
-      case "proposal_voted": {
-        const { proposalId, agentId, vote } = message.data as {
-          proposalId: string;
-          agentId: string;
-          vote: string;
-        };
-        const proposal = this.state.proposals[proposalId];
-        if (proposal) {
-          proposal.votes[agentId] = vote as "yes" | "no" | "abstain";
+      } else {
+        // Check for vote changes
+        const prevVoteCount = Object.keys(prevProposal.votes).length;
+        const nextVoteCount = Object.keys(proposal.votes).length;
+        if (nextVoteCount > prevVoteCount) {
           this.emit("proposal-voted", proposal);
         }
-        break;
-      }
 
-      case "proposal_resolved": {
-        const { proposalId, status, result } = message.data as {
-          proposalId: string;
-          status: string;
-          result?: string;
-        };
-        const proposal = this.state.proposals[proposalId];
-        if (proposal) {
-          proposal.status = status as "passed" | "failed" | "expired";
-          if (result) proposal.result = result;
+        // Check for status changes
+        if (prevProposal.status !== proposal.status) {
           this.emit("proposal-resolved", proposal);
         }
-        break;
       }
-
-      case "resources_collected": {
-        // This updates agent resources but we don't have full
-        // resource data in PublicAgent, so just emit the event
-        this.emit("resources-collected", message.data);
-        break;
-      }
-
-      case "activity": {
-        const entry = message.data as ActivityEntry;
-        this.state.activity.push(entry);
-        if (this.state.activity.length > 100) {
-          this.state.activity = this.state.activity.slice(-100);
-        }
-        this.emit("activity", entry);
-        break;
-      }
-
-      case "agent_action": {
-        this.emit("agent-action", message.data);
-        break;
-      }
-
-      case "world_event": {
-        const event = message.data as import("../shared/types").WorldEvent;
-        if (this.state.worldEvents) {
-          this.state.worldEvents.push(event);
-        }
-        this.emit("world-event", event);
-        break;
-      }
-
-      case "milestone_achieved": {
-        const milestone = message.data as import("../shared/types").VictoryMilestone;
-        if (this.state.milestones) {
-          this.state.milestones.push(milestone);
-        }
-        this.emit("milestone-achieved", milestone);
-        break;
-      }
-
-      case "resource_gathered": {
-        this.emit("resource-gathered", message.data);
-        break;
-      }
-
-      case "item_refined": {
-        this.emit("item-refined", message.data);
-        break;
-      }
-
-      case "forest_cleared": {
-        const { x, y } = message.data as { x: number; y: number };
-        if (this.state.grid[y] && this.state.grid[y][x]) {
-          this.state.grid[y][x].terrain = "plains" as import("../shared/types").TerrainType;
-          this.state.grid[y][x].resourceNode = null;
-        }
-        this.emit("forest-cleared", message.data);
-        break;
-      }
-
-      case "building_decayed": {
-        const { buildingId } = message.data as { buildingId: string };
-        const building = this.state.buildings[buildingId];
-        if (building) {
-          // Clear grid cells occupied by the building
-          for (let dy = 0; dy < building.height; dy++) {
-            for (let dx = 0; dx < building.width; dx++) {
-              const gx = building.x + dx;
-              const gy = building.y + dy;
-              if (this.state.grid[gy] && this.state.grid[gy][gx]) {
-                this.state.grid[gy][gx].buildingId = null;
-              }
-            }
-          }
-          delete this.state.buildings[buildingId];
-          this.emit("building-decayed", buildingId);
-        }
-        break;
-      }
-
-      case "agent_starving": {
-        const { agentId } = message.data as { agentId: string };
-        const agent = this.state.agents[agentId];
-        if (agent) {
-          agent.isStarving = true;
-          this.emit("agent-starving", agent);
-        }
-        break;
-      }
-
-      default:
-        break;
     }
+  }
+
+  private diffChat(prev: ChatMessage[], next: ChatMessage[]): void {
+    // Find new messages
+    const prevIds = new Set(prev.map((m) => m.id));
+    for (const message of next) {
+      if (!prevIds.has(message.id)) {
+        this.emit("chat-message", message);
+      }
+    }
+  }
+
+  private diffActivity(prev: ActivityEntry[], next: ActivityEntry[]): void {
+    // Find new activity entries
+    const prevIds = new Set(prev.map((e) => e.id));
+    for (const entry of next) {
+      if (!prevIds.has(entry.id)) {
+        this.emit("activity", entry);
+      }
+    }
+  }
+
+  /** Replace the entire state with a full snapshot (legacy/manual use) */
+  applyFullState(fullState: SpectatorState): void {
+    this.state = fullState;
+    this.emit("full-state", fullState);
   }
 }

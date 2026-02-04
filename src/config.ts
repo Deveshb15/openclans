@@ -6,10 +6,9 @@ import {
 } from "./shared/constants";
 
 export const GAME_CONFIG = {
-  // PartyKit connection
-  PARTYKIT_HOST:
-    import.meta.env.VITE_PARTYKIT_HOST || "localhost:8787",
-  ROOM_ID: "town",
+  // Convex connection
+  CONVEX_URL:
+    import.meta.env.VITE_CONVEX_URL || "http://localhost:3210",
 
   // Grid
   GRID_WIDTH,

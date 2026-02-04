@@ -4,9 +4,8 @@
 
 import { GAME_CONFIG } from "./config";
 import { WorldScene } from "./game/WorldScene";
-import { PartyClient } from "./network/PartyClient";
+import { MoltClansConvexClient } from "./network/ConvexClient";
 import { StateSync } from "./network/StateSync";
-import type { SpectatorState } from "./shared/types";
 
 // ============================================================
 // Initialize PixiJS World Scene
@@ -22,68 +21,30 @@ worldScene.init(container, stateSync).then(() => {
 });
 
 // ============================================================
-// Network Setup
+// Network Setup - Convex
 // ============================================================
 
-const partyClient = new PartyClient(
-  GAME_CONFIG.PARTYKIT_HOST,
-  GAME_CONFIG.ROOM_ID
-);
+const convexClient = new MoltClansConvexClient(GAME_CONFIG.CONVEX_URL);
 
 // --- Connection lifecycle ---
 
-partyClient.onOpen = () => {
-  console.log("[MoltClans] Connected to server");
+convexClient.onOpen = () => {
+  console.log("[MoltClans] Connected to Convex");
   worldScene.setConnected(true);
 };
 
-partyClient.onClose = () => {
-  console.log("[MoltClans] Disconnected from server");
+convexClient.onClose = () => {
+  console.log("[MoltClans] Disconnected from Convex");
   worldScene.setConnected(false);
 };
 
-partyClient.onError = (error: Event) => {
+convexClient.onError = (error: Error) => {
   console.error("[MoltClans] Connection error:", error);
 };
 
-// --- State updates ---
+// --- Connect StateSync to Convex ---
 
-partyClient.on("full_state", (message) => {
-  const state = message.data as SpectatorState;
-  stateSync.applyFullState(state);
-});
-
-// Register delta handlers for all message types
-const deltaTypes = [
-  "agent_joined",
-  "agent_left",
-  "agent_moved",
-  "plot_claimed",
-  "plot_released",
-  "building_placed",
-  "building_progress",
-  "building_completed",
-  "building_upgraded",
-  "building_demolished",
-  "chat_message",
-  "trade_created",
-  "trade_accepted",
-  "trade_cancelled",
-  "clan_created",
-  "clan_joined",
-  "clan_left",
-  "proposal_created",
-  "proposal_voted",
-  "proposal_resolved",
-  "resources_collected",
-  "activity",
-] as const;
-
-for (const type of deltaTypes) {
-  partyClient.on(type, (message) => {
-    stateSync.applyDelta(message);
-  });
-}
+stateSync.connect(convexClient);
 
 // ============================================================
 // Window Resize Handling
@@ -98,9 +59,20 @@ window.addEventListener("resize", () => {
 // ============================================================
 
 function initRegisterPanel(): void {
-  const host = GAME_CONFIG.PARTYKIT_HOST;
-  const protocol = host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https";
-  const baseUrl = `${protocol}://${host}/parties/main/${GAME_CONFIG.ROOM_ID}`;
+  // For Convex, the HTTP routes are at a different path
+  // The base URL is the Convex deployment URL + /api
+  const convexUrl = GAME_CONFIG.CONVEX_URL;
+  // Extract the deployment name to construct the HTTP URL
+  // Convex HTTP routes are at: https://<deployment>.convex.site
+  let baseUrl = convexUrl;
+  if (convexUrl.includes("convex.cloud")) {
+    // Production Convex URL format: https://<deployment>.convex.cloud
+    // HTTP routes are at: https://<deployment>.convex.site
+    baseUrl = convexUrl.replace(".convex.cloud", ".convex.site");
+  } else if (convexUrl.includes("localhost")) {
+    // Local development - HTTP routes are on same port
+    baseUrl = convexUrl;
+  }
 
   const panel = document.getElementById("register-panel")!;
   const toggle = document.getElementById("register-toggle")!;
@@ -218,6 +190,6 @@ if (import.meta.env.DEV) {
   (window as unknown as Record<string, unknown>).__moltclans = {
     worldScene,
     stateSync,
-    partyClient,
+    convexClient,
   };
 }

@@ -1,34 +1,24 @@
 {
   "name": "moltclans",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A 2D pixel art town-building game where OpenClaw AI agents join a persistent shared world",
   "type": "module",
   "scripts": {
-    "dev": "concurrently \"vite\" \"npx wrangler dev\"",
+    "dev": "concurrently \"vite\" \"convex dev\"",
     "dev:client": "vite",
-    "dev:server": "npx wrangler dev",
+    "dev:convex": "convex dev",
     "build": "tsc && vite build",
-    "deploy": "npx wrangler deploy",
-    "db:push": "drizzle-kit push",
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio"
+    "deploy": "convex deploy && vite build"
   },
   "dependencies": {
-    "@neondatabase/serverless": "^0.10.0",
-    "drizzle-orm": "^0.36.0",
-    "partyserver": "^0.0.60",
-    "partysocket": "^1.0.2",
+    "convex": "^1.31.7",
     "pixi.js": "^8.15.0"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20241205.0",
     "@types/node": "^20.11.0",
     "concurrently": "^8.2.2",
     "dotenv": "^16.4.0",
-    "drizzle-kit": "^0.30.0",
     "typescript": "^5.3.3",
-    "vite": "^5.0.12",
-    "wrangler": "^3.99.0"
+    "vite": "^5.0.12"
   }
 }
