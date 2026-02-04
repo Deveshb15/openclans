@@ -288,6 +288,18 @@ export async function handleRefine(
     }
   }
 
+  // Check inventory space for outputs
+  const currentUsage = getInventoryUsage(agent);
+  const outputTotal = Object.values(outputs).reduce((a, b) => a + b, 0);
+  const inputTotal = (inputs.wood ?? 0) + (inputs.stone ?? 0) + (inputs.water ?? 0) + (inputs.food ?? 0) + (inputs.clay ?? 0);
+  const limit = getInventoryLimit(agent, allBuildings);
+  if (currentUsage - inputTotal + outputTotal > limit) {
+    return jsonResponse<ApiResponse>({
+      ok: false,
+      error: `Not enough inventory space. After refining: ${currentUsage - inputTotal + outputTotal}/${limit}`,
+    }, 403);
+  }
+
   // Deduct inputs, add outputs
   const updates: Record<string, number> = {};
   if (inputs.wood) updates.rawWood = agent.inventory.raw.wood - inputs.wood;

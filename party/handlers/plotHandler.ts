@@ -50,12 +50,25 @@ export async function handleClaimPlot(
   const buildingsMap: Record<string, typeof allBuildings[0]> = {};
   for (const b of allBuildings) buildingsMap[b.id] = b;
   const maxPlots = getMaxPlots(agent, buildingsMap);
-  if (agent.plotCount >= maxPlots) {
+  if (agent.plotCount + width * height > maxPlots) {
     return jsonResponse<ApiResponse>({ ok: false, error: `Max plot limit reached (${maxPlots}). Build houses to increase.` }, 403);
   }
 
   if (!isAreaFree(grid, x, y, width, height)) {
     return jsonResponse<ApiResponse>({ ok: false, error: "Area is not available" }, 409);
+  }
+
+  // Check all tiles are cleared (no forest)
+  for (let dy = 0; dy < height; dy++) {
+    for (let dx = 0; dx < width; dx++) {
+      const cell = grid[y + dy]?.[x + dx];
+      if (cell && !cell.isCleared) {
+        return jsonResponse<ApiResponse>(
+          { ok: false, error: `Tile (${x + dx}, ${y + dy}) has forest — clear it first` },
+          400
+        );
+      }
+    }
   }
 
   // Token-based cost
