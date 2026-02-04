@@ -67,10 +67,6 @@ export async function handleClaimPlot(
     );
   }
 
-  await updateAgent(db, agent.id, {
-    tokens: agent.inventory.tokens - totalCost,
-  });
-
   const plot: Plot = {
     id: crypto.randomUUID(),
     ownerId: agent.id,
@@ -79,7 +75,9 @@ export async function handleClaimPlot(
   };
 
   await insertPlot(db, plot);
+  // Single updateAgent call to avoid race condition
   await updateAgent(db, agent.id, {
+    tokens: agent.inventory.tokens - totalCost,
     plotCount: agent.plotCount + width * height,
     x: x + Math.floor(width / 2),
     y: y + Math.floor(height / 2),

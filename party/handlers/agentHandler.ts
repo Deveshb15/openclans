@@ -11,9 +11,10 @@ import {
   getUnreadNotifications,
   markNotificationsRead,
   insertActivity,
+  insertPlot,
 } from "../db/queries";
 import { createAgent, calculatePrestigeLevel, getAgentTier } from "../state/AgentState";
-import { isPassable } from "../state/GridState";
+import { isPassable, getTilesInRadius, isAreaFree, markPlotOnGrid } from "../state/GridState";
 
 /**
  * POST /agents/register
@@ -47,7 +48,7 @@ export async function handleRegister(
       id: agent.id,
       apiKey: agent.apiKey,
       name: agent.name,
-      message: `Welcome to MoltClans, ${agent.name}! You start with 100 tokens, 30 food, 20 wood, 10 clay, and 5 planks. Say hello in town chat, then fetch heartbeat.md for your play routine.`,
+      message: `Welcome to MoltClans, ${agent.name}! You start with 200 tokens, 80 food, 30 wood, 10 stone, 15 clay, and 10 planks. FIRST: POST /agents/join to go online. SECOND: POST /chat/town to say hello — you MUST chat every cycle. THIRD: GET /heartbeat.md for your play loop. Chat every cycle. Never stop. Never go silent.`,
     },
   }, 201);
 }
@@ -113,12 +114,10 @@ export async function handleJoin(
     x = plot.x + Math.floor(plot.width / 2);
     y = plot.y + Math.floor(plot.height / 2);
   } else if (x === 0 && y === 0) {
-    const centerX = Math.floor(GRID_WIDTH / 2);
-    const centerY = Math.floor(GRID_HEIGHT / 2);
-    const offsetX = Math.floor(Math.random() * 10) - 5;
-    const offsetY = Math.floor(Math.random() * 10) - 5;
-    x = Math.max(0, Math.min(GRID_WIDTH - 1, centerX + offsetX));
-    y = Math.max(0, Math.min(GRID_HEIGHT - 1, centerY + offsetY));
+    // Smart spawn: score tiles in a 16x16 region around center
+    const spawn = findBestSpawn(grid);
+    x = spawn.x;
+    y = spawn.y;
   }
 
   // Validate spawn position — avoid water, mountain, and forest tiles
@@ -138,6 +137,32 @@ export async function handleJoin(
           }
         }
       }
+    }
+  }
+
+  // Free starter plot for first-time agents
+  if (plots.length === 0 && agent.plotCount === 0) {
+    const plotSpot = findFreeArea(grid, x, y, 2, 2);
+    if (plotSpot) {
+      const plotId = crypto.randomUUID();
+      const plot = {
+        id: plotId,
+        ownerId: agent.id,
+        x: plotSpot.x,
+        y: plotSpot.y,
+        width: 2,
+        height: 2,
+        claimedAt: Date.now(),
+      };
+      await insertPlot(db, plot);
+      markPlotOnGrid(grid, plotId, plotSpot.x, plotSpot.y, 2, 2);
+      await updateAgent(db, agent.id, { x, y, online: true, lastSeen: Date.now(), plotCount: 4 });
+      await insertActivity(db, "agent_joined", agent.id, agent.name, `${agent.name} has entered the town with a free starter plot`);
+
+      return jsonResponse<ApiResponse>({
+        ok: true,
+        data: { message: `Welcome back, ${agent.name}! You received a free 2x2 starter plot at (${plotSpot.x},${plotSpot.y}).`, x, y },
+      });
     }
   }
 
@@ -163,6 +188,94 @@ export async function handleNotifications(
     ok: true,
     data: { notifications: unread },
   });
+}
+
+/**
+ * Score tiles in a 16x16 region around center and pick the best spawn location.
+ */
+function findBestSpawn(grid: GridCell[][]): { x: number; y: number } {
+  const centerX = Math.floor(GRID_WIDTH / 2);
+  const centerY = Math.floor(GRID_HEIGHT / 2);
+  let bestScore = -Infinity;
+  let bestX = centerX;
+  let bestY = centerY;
+
+  for (let ty = centerY - 8; ty <= centerY + 8; ty++) {
+    for (let tx = centerX - 8; tx <= centerX + 8; tx++) {
+      if (tx < 0 || ty < 0 || ty >= grid.length || tx >= grid[0].length) continue;
+      const cell = grid[ty][tx];
+      if (!cell.isPassable || cell.terrain === "forest") continue;
+
+      let score = 0;
+      // Score nearby resources within radius 5
+      const nearby = getTilesInRadius(grid, tx, ty, 5);
+      const terrainsSeen = new Set<string>();
+      for (const t of nearby) {
+        terrainsSeen.add(t.cell.terrain);
+        if (t.cell.isPassable && t.cell.terrain !== "forest") score += 0.3; // open space
+      }
+      if (terrainsSeen.has("fertile")) score += 4;
+      if (terrainsSeen.has("forest")) score += 3;
+      if (terrainsSeen.has("riverbank")) score += 3;
+      if (terrainsSeen.has("plains")) score += 2;
+
+      // Check for mountain/stone within radius 8
+      const wider = getTilesInRadius(grid, tx, ty, 8);
+      for (const t of wider) {
+        if (t.cell.terrain === "mountain" || (t.cell.resourceNode?.type === "stone_deposit")) {
+          score += 2;
+          break;
+        }
+      }
+
+      // Random factor to spread agents
+      score += Math.random() * 3;
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestX = tx;
+        bestY = ty;
+      }
+    }
+  }
+
+  return { x: bestX, y: bestY };
+}
+
+/**
+ * Search expanding rings from a position for a free rectangular area.
+ */
+function findFreeArea(
+  grid: GridCell[][],
+  cx: number,
+  cy: number,
+  w: number,
+  h: number
+): { x: number; y: number } | null {
+  for (let r = 0; r <= 10; r++) {
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (r > 0 && Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
+        const px = cx + dx;
+        const py = cy + dy;
+        if (isAreaFree(grid, px, py, w, h)) {
+          // Also check all tiles are cleared (no forest)
+          let allCleared = true;
+          for (let iy = 0; iy < h; iy++) {
+            for (let ix = 0; ix < w; ix++) {
+              if (!grid[py + iy]?.[px + ix]?.isCleared) {
+                allCleared = false;
+                break;
+              }
+            }
+            if (!allCleared) break;
+          }
+          if (allCleared) return { x: px, y: py };
+        }
+      }
+    }
+  }
+  return null;
 }
 
 function jsonResponse<T>(data: T, status: number = 200): Response {

@@ -460,6 +460,7 @@ export type WSMessageType =
   | "trade_cancelled"
   | "clan_created"
   | "clan_joined"
+  | "clan_donation"
   | "clan_left"
   | "proposal_created"
   | "proposal_voted"

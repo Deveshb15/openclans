@@ -305,8 +305,6 @@ export async function handleUpgradeBuilding(
     refinedSteel: inv.refined.steel - costRefined.steel,
     tokens: inv.tokens - costTokens,
     reputation: agent.reputation + PRESTIGE.UPGRADE,
-    x: building.x,
-    y: building.y,
   });
 
   await updateBuilding(db, buildingId, { level: building.level + 1 });
@@ -425,8 +423,6 @@ export async function handleContributeBuilding(
     return jsonResponse<ApiResponse>({ ok: false, error: "No resources contributed" }, 400);
   }
 
-  agentUpdates.x = building.x;
-  agentUpdates.y = building.y;
   await updateAgent(db, agent.id, agentUpdates);
 
   // Record contribution
@@ -435,7 +431,32 @@ export async function handleContributeBuilding(
   for (const [k, v] of Object.entries(contribRaw)) {
     contributors[agent.id][k] = (contributors[agent.id][k] ?? 0) + v;
   }
-  await updateBuilding(db, buildingId, { contributors: contributors as any });
+  for (const [k, v] of Object.entries(contribRefined)) {
+    contributors[agent.id][k] = (contributors[agent.id][k] ?? 0) + v;
+  }
+  if (contribTokens > 0) {
+    contributors[agent.id]["tokens"] = (contributors[agent.id]["tokens"] ?? 0) + contribTokens;
+  }
+
+  // Reduce build time proportionally: contribution value / total cost = fraction of build time saved
+  const def = BUILDING_DEFINITIONS[building.type];
+  const buildingUpdates: Record<string, any> = { contributors: contributors as any };
+  if (def) {
+    const totalCost =
+      (def.cost.raw.wood ?? 0) + (def.cost.raw.stone ?? 0) + (def.cost.raw.water ?? 0) +
+      (def.cost.raw.food ?? 0) + (def.cost.raw.clay ?? 0) +
+      (def.cost.refined.planks ?? 0) + (def.cost.refined.bricks ?? 0) + (def.cost.refined.cement ?? 0) +
+      (def.cost.refined.glass ?? 0) + (def.cost.refined.steel ?? 0) +
+      def.cost.tokens;
+    if (totalCost > 0) {
+      const fraction = Math.min(1, totalValue / totalCost);
+      const buildTimeMs = def.buildTime * 1000;
+      const timeReduction = Math.floor(buildTimeMs * fraction);
+      // Move startedAt earlier to simulate faster build
+      buildingUpdates.startedAt = building.startedAt - timeReduction;
+    }
+  }
+  await updateBuilding(db, buildingId, buildingUpdates);
 
   // Award reputation for contribution
   if (totalValue > 0) {

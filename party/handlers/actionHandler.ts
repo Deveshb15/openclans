@@ -9,12 +9,15 @@ import {
   FOREST_CLEAR_WOOD_YIELD,
   CLAIM_TILE_COST_TOKENS,
   VISION_RADIUS,
+  MIN_PLOT_SIZE,
+  MAX_PLOT_SIZE,
 } from "../../src/shared/constants";
 import type { Db } from "../db/client";
 import {
   updateAgent,
   insertActivity,
   insertPlot,
+  getAllBuildings,
 } from "../db/queries";
 import {
   isPassable,
@@ -27,6 +30,7 @@ import {
   getInventoryUsage,
   getInventoryLimit,
   canAct,
+  getMaxPlots,
 } from "../state/AgentState";
 import type { Plot } from "../../src/shared/types";
 
@@ -39,12 +43,7 @@ export async function handleMove(
   grid: GridCell[][],
   allBuildings: Record<string, any>
 ): Promise<Response> {
-  if (!canAct(agent)) {
-    return jsonResponse<ApiResponse>(
-      { ok: false, error: "Agent is starving and cannot act. Forage for food first." },
-      403
-    );
-  }
+  // Starving agents CAN move — they need to reach food terrain
 
   const dir = body.direction;
   if (!dir || typeof dir !== "string") {
@@ -102,13 +101,6 @@ export async function handleGather(
   grid: GridCell[][],
   allBuildings: Record<string, any>
 ): Promise<Response> {
-  if (!canAct(agent)) {
-    return jsonResponse<ApiResponse>(
-      { ok: false, error: "Agent is starving and cannot act." },
-      403
-    );
-  }
-
   const gatherType = body.type;
   if (!gatherType || typeof gatherType !== "string") {
     return jsonResponse<ApiResponse>(
@@ -123,6 +115,14 @@ export async function handleGather(
     return jsonResponse<ApiResponse>(
       { ok: false, error: `Invalid gather type '${gatherType}'. Use: ${validTypes.join(", ")}` },
       400
+    );
+  }
+
+  // Starving agents CAN forage (to recover from starvation) but cannot do other gather types
+  if (!canAct(agent) && gatherType !== "forage") {
+    return jsonResponse<ApiResponse>(
+      { ok: false, error: "Agent is starving and cannot act. Forage for food first." },
+      403
     );
   }
 
@@ -390,6 +390,26 @@ export async function handleClaimTile(
   const y = body.y ?? agent.y;
   const width = body.width ?? 1;
   const height = body.height ?? 1;
+
+  // Validate plot size
+  if (width < MIN_PLOT_SIZE || width > MAX_PLOT_SIZE || height < MIN_PLOT_SIZE || height > MAX_PLOT_SIZE) {
+    return jsonResponse<ApiResponse>(
+      { ok: false, error: `Plot dimensions must be between ${MIN_PLOT_SIZE} and ${MAX_PLOT_SIZE}` },
+      400
+    );
+  }
+
+  // Check plot limit
+  const allBuildingsArr = await getAllBuildings(db);
+  const buildingsMap: Record<string, any> = {};
+  for (const b of allBuildingsArr) buildingsMap[b.id] = b;
+  const maxPlots = getMaxPlots(agent, buildingsMap);
+  if (agent.plotCount + width * height > maxPlots) {
+    return jsonResponse<ApiResponse>(
+      { ok: false, error: `Max plot limit reached (${maxPlots} tiles). Build houses to increase.` },
+      403
+    );
+  }
 
   // Validate position
   if (x < 0 || y < 0 || x + width > grid[0].length || y + height > grid.length) {

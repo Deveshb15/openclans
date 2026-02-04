@@ -65,10 +65,16 @@ function pickTerrain(
   // River: diagonal band from NW to SE through center
   const riverDist = Math.abs((x - centerX) - (y - centerY)) / Math.sqrt(2);
   const riverWidth = 1.2 + noise2D(x, y, 99) * 1.0;
+
+  // Ford crossings: passable riverbank gaps at NW, center, and SE positions
+  const riverParam = ((x - centerX) + (y - centerY)) / 2;
+  const fordPositions = [-10, 0, 10];
+  const FORD_HALF_WIDTH = 1.5;
+  const isFord = fordPositions.some(fp => Math.abs(riverParam - fp) < FORD_HALF_WIDTH);
+
   if (riverDist < riverWidth) {
-    if (riverDist > riverWidth - 0.8) {
-      return "riverbank";
-    }
+    if (isFord) return "riverbank";       // Ford: passable crossing
+    if (riverDist > riverWidth - 0.8) return "riverbank";
     return "water";
   }
 
@@ -180,6 +186,19 @@ function generateResourceNode(x: number, y: number, terrain: TerrainType): Resou
         respawnTicks: 8,
         depletedAt: null,
       };
+    case "plains": {
+      const d = Math.sqrt((x - 25) ** 2 + (y - 25) ** 2) / Math.sqrt(25 * 25 + 25 * 25);
+      if (d > 0.2 && d < 0.5 && chance > 0.85) {
+        return {
+          type: "stone_deposit",
+          maxAmount: 15,
+          currentAmount: 15,
+          respawnTicks: 999999,
+          depletedAt: null,
+        };
+      }
+      return null;
+    }
     default:
       return null;
   }
