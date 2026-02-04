@@ -20,33 +20,33 @@ export const AGENT_SPRITE_HEIGHT = 40;
 export const MIN_PLOT_SIZE = 1;
 export const MAX_PLOT_SIZE = 8;
 export const MAX_PLOTS_PER_AGENT = 20;
-export const CLAIM_TILE_COST_TOKENS = 10;
+export const CLAIM_TILE_COST_TOKENS = 2;
 
 // --- Starter Resources ---
-export const STARTER_TOKENS = 100;
-export const STARTER_FOOD = 30;
+export const STARTER_TOKENS = 200;
+export const STARTER_FOOD = 150;
 
 // --- Rate Limits ---
 export const RATE_LIMIT_WINDOW_MS = 60_000;
 export const RATE_LIMIT_MAX_REQUESTS = 300;
-export const BUILD_COOLDOWN_MS = 10_000; // 10s
-export const CHAT_COOLDOWN_MS = 10_000;
+export const BUILD_COOLDOWN_MS = 5_000; // 5s
+export const CHAT_COOLDOWN_MS = 5_000;
 export const TRADE_COOLDOWN_MS = 15_000;
 export const MOVE_COOLDOWN_MS = 2_000;
-export const GATHER_COOLDOWN_MS = 5_000;
-export const REFINE_COOLDOWN_MS = 5_000;
-export const BATCH_COOLDOWN_MS = 15_000;
+export const GATHER_COOLDOWN_MS = 3_000;
+export const REFINE_COOLDOWN_MS = 3_000;
+export const BATCH_COOLDOWN_MS = 10_000;
 
 // --- Resource Collection ---
-export const RESOURCE_TICK_INTERVAL_MS = 30_000; // 30s ticks
+export const RESOURCE_TICK_INTERVAL_MS = 45_000; // 45s ticks
 
 // --- Food & Survival ---
-export const FOOD_CONSUMPTION_PER_TICK = 1;
+export const FOOD_CONSUMPTION_PER_TICK = 0.5;
 export const INVENTORY_LIMIT_DEFAULT = 100;
 export const VISION_RADIUS = 5;
 
 // --- Economy ---
-export const TAX_RATE = 0.05;
+export const TAX_RATE = 0.02;
 export const FOREST_CLEAR_TICKS = 3;
 export const FOREST_CLEAR_WOOD_YIELD = 10;
 export const DESERT_BUILD_COST_MULTIPLIER = 1.5;
@@ -166,8 +166,8 @@ export const RENT_CONTRACTS = {
 
 // --- Resource Node Respawn (in ticks) ---
 export const RESOURCE_RESPAWN = {
-  tree: 15,
-  stone_deposit: 999999, // effectively infinite
+  tree: 8,
+  stone_deposit: 20,
   clay_deposit: 10,
   water_source: 0, // never depletes
   fertile_soil: 8,
@@ -195,10 +195,10 @@ export const BUILDING_DEFINITIONS: Record<string, BuildingDefinition> = {
     width: 1,
     height: 1,
     cost: { raw: { wood: 10 }, refined: { planks: 5 }, tokens: 10 },
-    benefit: "+3 tokens/tick rent",
+    benefit: "+4 tokens/tick rent",
     buildTime: 10,
     maxLevel: 3,
-    tokenIncome: 3,
+    tokenIncome: 4,
     durability: 50,
     maxDurability: 50,
     decayRate: 1,
@@ -210,11 +210,11 @@ export const BUILDING_DEFINITIONS: Record<string, BuildingDefinition> = {
     width: 2,
     height: 2,
     cost: { raw: { wood: 8, clay: 3 }, refined: { planks: 3 }, tokens: 15 },
-    benefit: "+5 food/tick",
+    benefit: "+6 food/tick",
     buildTime: 10,
     maxLevel: 3,
     tokenIncome: 0,
-    production: { food: 5 },
+    production: { food: 6 },
     durability: 50,
     maxDurability: 50,
     decayRate: 1,

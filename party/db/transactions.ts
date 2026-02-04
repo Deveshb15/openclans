@@ -686,7 +686,8 @@ export async function refineResource(
 
 /**
  * Applies decay to all buildings. Reduces durability by each building's
- * decayRate per tick. Destroys buildings that reach 0 durability.
+ * decayRate per tick (with 0.3x multiplier for forgiving gameplay).
+ * Destroys buildings that reach 0 durability.
  *
  * @returns List of destroyed building IDs
  */
@@ -695,18 +696,20 @@ export async function applyDecay(
 ): Promise<{ destroyedIds: string[] }> {
   const destroyedIds: string[] = [];
 
-  // Reduce durability on all buildings by their decayRate
+  // Reduce durability on completed buildings only (incomplete buildings don't decay)
+  // Apply 0.3x multiplier: normal buildings decay 0.3/tick, slow-decay 0.15/tick
   await db
     .update(buildings)
     .set({
-      durability: sql`GREATEST(0, ${buildings.durability} - ${buildings.decayRate})`,
-    });
+      durability: sql`GREATEST(0, ${buildings.durability} - (${buildings.decayRate} * 0.3))`,
+    })
+    .where(eq(buildings.completed, true));
 
-  // Find buildings that have been destroyed (durability reached 0)
+  // Find completed buildings that have been destroyed (durability reached 0)
   const destroyedRows = await db
     .select({ id: buildings.id, ownerId: buildings.ownerId, type: buildings.type, x: buildings.x, y: buildings.y })
     .from(buildings)
-    .where(sql`${buildings.durability} <= 0`);
+    .where(sql`${buildings.durability} <= 0 AND ${buildings.completed} = true`);
 
   for (const row of destroyedRows) {
     // Decrement owner's building count
