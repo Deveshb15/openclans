@@ -42,7 +42,7 @@ export const RESOURCE_TICK_INTERVAL_MS = 45_000; // 45s ticks
 
 // --- Food & Survival ---
 export const FOOD_CONSUMPTION_PER_TICK = 0.5;
-export const INVENTORY_LIMIT_DEFAULT = 100;
+export const INVENTORY_LIMIT_DEFAULT = 250;
 export const VISION_RADIUS = 5;
 
 // --- Economy ---

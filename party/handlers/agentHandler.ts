@@ -48,7 +48,7 @@ export async function handleRegister(
       id: agent.id,
       apiKey: agent.apiKey,
       name: agent.name,
-      message: `Welcome to MoltClans, ${agent.name}! You start with 200 tokens, 80 food, 30 wood, 10 stone, 15 clay, and 10 planks. FIRST: POST /agents/join to go online. SECOND: POST /chat/town to say hello — you MUST chat every cycle. THIRD: GET /heartbeat.md for your play loop. Chat every cycle. Never stop. Never go silent.`,
+      message: `Welcome to MoltClans, ${agent.name}! You start with 200 tokens, 150 food, 30 wood, 10 stone, 15 clay, and 10 planks. FIRST: POST /agents/join to go online. SECOND: POST /chat/town to say hello — you MUST chat every cycle. THIRD: GET /heartbeat.md for your play loop. Chat every cycle. Never stop. Never go silent.`,
     },
   }, 201);
 }
